@@ -6,8 +6,7 @@ from disaster_area                     import create_disaster_area
 from Utils.scene_utils                 import clear_disaster_area, restart_disaster_area
 from Utils.config_utils                import get_default_config
 
-from Sensors.rgbd_camera_setup             import setup_rgbd_camera
-from Sensors.single_camera_dual_renderer    import SingleCameraDualViewRenderer
+from Sensors.rgbd_camera_setup         import setup_rgbd_camera
 
 from Core.event_manager                import EventManager
 from Controls.drone_keyboard_mapper    import register_drone_keyboard_mapper
@@ -27,9 +26,7 @@ def main():
     config = get_default_config()
 
     # ─── Single RGB-D Sensor Setup ───
-    sensor_handle = setup_rgbd_camera(sim, config)
-    renderer      = SingleCameraDualViewRenderer(sim, sensor_handle)
-    renderer.start()
+    cam_rgb, cam_depth, floating_view_rgb, floating_view_depth = setup_rgbd_camera(sim, config)  # <-- Modified to return cam_handle too
 
     # ─── Movement target for drone control ───
     target_handle = sim.getObject('/target')
@@ -93,10 +90,16 @@ def main():
                 finally:
                     sim.releaseLock()
 
-            # ─── Update the combined RGB-D view & step ───
-            renderer.update()
-            for _ in range(3):
-                sim.step()
+            # ─── Handle vision sensor and step simulation ───
+            sim.acquireLock()
+            try:
+                sim.handleVisionSensor(cam_rgb)
+                sim.handleVisionSensor(cam_depth)
+            finally:
+                sim.releaseLock()
+            
+            sim.step()
+
             time.sleep(0.001)
 
     except KeyboardInterrupt:
@@ -104,7 +107,7 @@ def main():
 
     finally:
         # ensure renderer closes its window
-        shutdown_simulation(keyboard_manager, renderer, sim)
+        shutdown_simulation(keyboard_manager, floating_view_rgb, floating_view_depth, sim)
         print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':

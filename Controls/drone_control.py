@@ -1,5 +1,6 @@
 # Controls/drone_control.py
 
+import math
 import time
 import threading
 import sys
@@ -43,14 +44,24 @@ def manual_drone_control(sim):
     keyboard_thread.daemon = True
     keyboard_thread.start()
 
-    def move_target(dx=0, dy=0, dz=0):
+    def move_target(forward=0.0, sideward=0.0, upward=0.0):
         sim.acquireLock()
         try:
             pos = sim.getObjectPosition(target_handle, -1)
+            ori = sim.getObjectOrientation(target_handle, -1)
+
+            yaw = ori[2]  # Only yaw matters
+
+            # Adjust for drone facing -X
+            dx = -forward * math.cos(yaw) - sideward * math.sin(yaw)
+            dy = -forward * math.sin(yaw) + sideward * math.cos(yaw)
+            dz = upward
+
             new_pos = [pos[0] + dx, pos[1] + dy, pos[2] + dz]
             sim.setObjectPosition(target_handle, -1, new_pos)
         finally:
             sim.releaseLock()
+
 
     print("[Drone Manual Control] Use W/A/S/D/Q/E to move, X to exit.")
 
@@ -61,20 +72,18 @@ def manual_drone_control(sim):
                 key_pressed = None
 
                 if key == 'w':
-                    move_target(dy=MOVE_STEP)
+                    move_target(forward=MOVE_STEP)
                 elif key == 's':
-                    move_target(dy=-MOVE_STEP)
+                    move_target(forward=-MOVE_STEP)
                 elif key == 'a':
-                    move_target(dx=-MOVE_STEP)
+                    move_target(sideward=-MOVE_STEP)
                 elif key == 'd':
-                    move_target(dx=+MOVE_STEP)
+                    move_target(sideward=+MOVE_STEP)
                 elif key == 'q':
-                    move_target(dz=+MOVE_STEP)
+                    move_target(upward=+MOVE_STEP)
                 elif key == 'e':
-                    move_target(dz=-MOVE_STEP)
-                elif key == 'x':
-                    print("[Drone Manual Control] Exiting manual control...")
-                    break
+                    move_target(upward=-MOVE_STEP)
+
 
             time.sleep(DELAY)
 
