@@ -1,17 +1,16 @@
 # Utils/config_utils.py
 
 def get_default_config():
-    """
-    Returns the default disaster scene configuration.
-    """
     return {
         'area_size': 10.0,
         'num_trees': 25,
         'fraction_standing': 0.4,
         'num_rocks': 20,
         'clear_zone_center': (0, 0),
-        'clear_zone_radius': 2.0
+        'clear_zone_radius': 2.0,
+        'verbose': False 
     }
+
 
 def modify_config(config):
     """

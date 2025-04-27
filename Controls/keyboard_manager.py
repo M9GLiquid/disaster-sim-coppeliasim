@@ -1,4 +1,5 @@
 # Controls/keyboard_manager.py
+
 import threading
 import time
 import sys
@@ -37,29 +38,32 @@ class KeyboardManager:
         except ImportError:
             import tty
             import termios
+            import select
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(fd)
                 while self.running:
-                    key = sys.stdin.read(1)
-                    if key == '\r' or key == '\n':
-                        if not self.typing_mode:
-                            print("\n[KeyboardManager] Entering typing mode...")
-                            self.typing_mode = True
-                        else:
+                    dr, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    if dr:
+                        key = sys.stdin.read(1)
+                        if key == '\r' or key == '\n':
+                            if not self.typing_mode:
+                                print("\n[KeyboardManager] Entering typing mode...")
+                                self.typing_mode = True
+                            else:
+                                pass
+                        elif self.typing_mode:
                             pass
-                    elif self.typing_mode:
-                        pass
-                    else:
-                        self.key_pressed = key.lower()
+                        else:
+                            self.key_pressed = key.lower()
                     time.sleep(0.01)
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     def process_keys(self):
         MOVE_STEP = 0.1
-        ROTATE_STEP = math.radians(10)  # Nice clean 10 degrees
+        ROTATE_STEP = math.radians(10)  # 10 degrees
 
         if self.key_pressed and not self.typing_mode:
             key = self.key_pressed
@@ -73,21 +77,21 @@ class KeyboardManager:
                 new_pos = list(pos)
                 new_orient = list(orient)
 
-                if key == 'w':      # Forward movement
+                if key == 'w':
                     new_pos[1] += MOVE_STEP
-                elif key == 's':    # Backward movement
+                elif key == 's':
                     new_pos[1] -= MOVE_STEP
-                elif key == 'a':    # Leftward movement  
+                elif key == 'a':
                     new_pos[0] -= MOVE_STEP
-                elif key == 'd':    # Rightward movement
+                elif key == 'd':
                     new_pos[0] += MOVE_STEP
-                elif key == ' ':    # Jump (upward movement)
+                elif key == ' ':
                     new_pos[2] += MOVE_STEP
-                elif key == 'z':    # Downward movement
+                elif key == 'z':
                     new_pos[2] -= MOVE_STEP
-                elif key == 'q':    # Rotate left (yaw)
+                elif key == 'q':
                     new_orient[2] += ROTATE_STEP
-                elif key == 'e':    # Rotate right (yaw)
+                elif key == 'e':
                     new_orient[2] -= ROTATE_STEP
 
                 self.sim.setObjectPosition(self.target_handle, -1, new_pos)
@@ -111,3 +115,5 @@ class KeyboardManager:
 
     def stop(self):
         self.running = False
+        if self.thread.is_alive():
+            self.thread.join()

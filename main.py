@@ -21,8 +21,8 @@ def show_menu():
     print("  1 - Create disaster area")
     print("  2 - Add dynamic flying objects (birds & junk)")
     print("  3 - Restart disaster area")
-    print("  4 - Modify configuration")
-    print("  5 - Clear disaster area")
+    print("  4 - Clear disaster area")
+    print("  9 - Modify configuration")
     print("  q - Quit\n")
 
 def main():
@@ -31,16 +31,14 @@ def main():
 
     sim.setStepping(True)
 
-    camera_handle = setup_drone_camera(sim)
-    target_handle = sim.getObject('/target')
+    config = get_default_config()
+
+    camera_handle, target_handle = setup_drone_camera(sim, config)
 
     camera_view = CameraView(sim, camera_handle)
     camera_view.start()
 
     keyboard_manager = KeyboardManager(sim, target_handle)
-
-    config = get_default_config()
-
     try:
         while True:
             keyboard_manager.process_keys()
@@ -62,9 +60,11 @@ def main():
                 elif command == '3':
                     restart_disaster_area(sim, config)
                 elif command == '4':
-                    modify_config(config)
-                elif command == '5':
                     clear_disaster_area(sim)
+
+                elif command == '9':
+                    modify_config(config)
+
                 elif command == 'q':
                     print("[Main] Quit requested.")
                     break
@@ -73,7 +73,7 @@ def main():
                 sim.releaseLock()
 
             camera_view.update()
-            
+
             for _ in range(3):
                 sim.step()
 
