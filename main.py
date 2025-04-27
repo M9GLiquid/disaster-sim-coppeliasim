@@ -6,19 +6,19 @@ from disaster_area                     import create_disaster_area
 from Utils.scene_utils                 import clear_disaster_area, restart_disaster_area
 from Utils.config_utils                import get_default_config
 
-from Controls.camera_setup             import setup_drone_camera
-from Controls.camera_view              import CameraView
-from Managers.movement_manager         import MovementManager
+from Sensors.rgbd_camera_setup             import setup_rgbd_camera
+from Sensors.single_camera_dual_renderer    import SingleCameraDualViewRenderer
 
 from Core.event_manager                import EventManager
 from Controls.drone_keyboard_mapper    import register_drone_keyboard_mapper
+from Managers.movement_manager         import MovementManager
 
 from Managers.keyboard_manager         import KeyboardManager
 from Managers.menu_system              import MenuSystem
-
 from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
 
 def main():
+    # ─── Initialization ───
     event_manager    = EventManager()
     sim              = connect_to_simulation()
     print("[Main] Simulation connected.")
@@ -26,18 +26,21 @@ def main():
     sim.setStepping(True)
     config = get_default_config()
 
-    # camera & display
-    cam_handle, target_handle = setup_drone_camera(sim, config)
-    camera_view               = CameraView(sim, cam_handle)
-    camera_view.start()
+    # ─── Single RGB-D Sensor Setup ───
+    sensor_handle = setup_rgbd_camera(sim, config)
+    renderer      = SingleCameraDualViewRenderer(sim, sensor_handle)
+    renderer.start()
 
-    # input systems
+    # ─── Movement target for drone control ───
+    target_handle = sim.getObject('/target')
+
+    # ─── Input & Control Systems ───
     keyboard_manager = KeyboardManager(event_manager)
     menu_system      = MenuSystem(event_manager, keyboard_manager, config)
     movement_manager = MovementManager(event_manager)
     register_drone_keyboard_mapper(event_manager, keyboard_manager)
 
-    # catch selections
+    # ─── Menu selection handler ───
     current_command = None
     def on_menu_selected(cmd):
         nonlocal current_command
@@ -46,7 +49,7 @@ def main():
 
     try:
         while True:
-            # if a command arrived, run it first
+            # ─── Dispatch menu commands ───
             if current_command:
                 sim.acquireLock()
                 try:
@@ -64,13 +67,12 @@ def main():
                 finally:
                     sim.releaseLock()
 
-                # after execution, re-open chat menu (unless quitting)
+                # re-open chat for next command (unless quitting)
                 if current_command != 'q':
                     menu_system.open_chat()
-
                 current_command = None
 
-            # handle drone WASD/QE movement
+            # ─── Drone movement (W/A/S/D/Q/E) ───
             moves = movement_manager.get_moves()
             rots  = movement_manager.get_rotates()
             if moves or rots:
@@ -91,8 +93,8 @@ def main():
                 finally:
                     sim.releaseLock()
 
-            # update camera & step
-            camera_view.update()
+            # ─── Update the combined RGB-D view & step ───
+            renderer.update()
             for _ in range(3):
                 sim.step()
             time.sleep(0.001)
@@ -101,9 +103,9 @@ def main():
         print("\n[Main] KeyboardInterrupt received. Exiting...")
 
     finally:
-        shutdown_simulation(keyboard_manager, camera_view, sim)
+        # ensure renderer closes its window
+        shutdown_simulation(keyboard_manager, renderer, sim)
         print("[Main] Shutdown complete.")
-
 
 if __name__ == '__main__':
     main()
