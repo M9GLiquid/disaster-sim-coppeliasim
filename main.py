@@ -5,16 +5,19 @@ import time
 from disaster_area import create_disaster_area
 from dynamic_objects import create_all_dynamic
 
-from Utils.scene_utils import start_sim_if_needed, clear_disaster_area, restart_disaster_area
+from Utils.scene_utils import clear_disaster_area, restart_disaster_area
 from Utils.config_utils import get_default_config, modify_config
 
-from Controls.drone_control import manual_drone_control
-from Controls.waypoint_navigation import prepare_waypoint, activate_waypoint_follow
 from Controls.camera_setup import setup_drone_camera
 from Controls.camera_view import CameraView
-from Controls.keyboard_manager import KeyboardManager
 
-import threading
+from Core.event_manager import EventManager
+from Managers.keyboard_manager import KeyboardManager
+from Controls.drone_keyboard_mapper import register_drone_keyboard_mapper
+from Controls.typing_mode_handler import register_typing_mode_handler
+from Controls.keyboard_handlers import register_keyboard_handlers
+
+from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
 
 def show_menu():
     print("\n[Main Menu]")
@@ -26,19 +29,23 @@ def show_menu():
     print("  q - Quit\n")
 
 def main():
-    sim = start_sim_if_needed()
-    print("[Main] Simulation started.")
+    event_manager = EventManager()
+    sim = connect_to_simulation()
+    print("[Main] Simulation connected.")
 
     sim.setStepping(True)
 
     config = get_default_config()
 
     camera_handle, target_handle = setup_drone_camera(sim, config)
-
     camera_view = CameraView(sim, camera_handle)
     camera_view.start()
 
-    keyboard_manager = KeyboardManager(sim, target_handle)
+    keyboard_manager = KeyboardManager(event_manager)
+    register_drone_keyboard_mapper(event_manager)
+    register_typing_mode_handler(event_manager, keyboard_manager)
+    register_keyboard_handlers(event_manager, sim, target_handle)
+
     try:
         while True:
             keyboard_manager.process_keys()
@@ -47,30 +54,30 @@ def main():
                 show_menu()
                 sim.setStepping(False)
                 command = input(">> ").strip().lower()
-                sim.setStepping(True) 
+                sim.setStepping(True)
                 keyboard_manager.finish_typing(command)
 
             command = keyboard_manager.get_command()
             if command:
                 sim.acquireLock()
-                if command == '1':
-                    create_disaster_area(sim, config)
-                elif command == '2':
-                    create_all_dynamic(sim, config['area_size'], num_birds=1, num_junk=3)
-                elif command == '3':
-                    restart_disaster_area(sim, config)
-                elif command == '4':
-                    clear_disaster_area(sim)
-
-                elif command == '9':
-                    modify_config(config)
-
-                elif command == 'q':
-                    print("[Main] Quit requested.")
-                    break
-                else:
-                    print("[Main] Unknown command.")
-                sim.releaseLock()
+                try:
+                    if command == '1':
+                        create_disaster_area(sim, config)
+                    elif command == '2':
+                        create_all_dynamic(sim, config['area_size'], num_birds=1, num_junk=3)
+                    elif command == '3':
+                        restart_disaster_area(sim, config)
+                    elif command == '4':
+                        clear_disaster_area(sim)
+                    elif command == '9':
+                        modify_config(config)
+                    elif command == 'q':
+                        print("[Main] Quit requested.")
+                        break
+                    else:
+                        print("[Main] Unknown command.")
+                finally:
+                    sim.releaseLock()
 
             camera_view.update()
 
@@ -80,18 +87,11 @@ def main():
             time.sleep(0.001)
 
     except KeyboardInterrupt:
-        print("\n[Main] Exiting on Ctrl-C.")
+        print("\n[Main] KeyboardInterrupt received. Exiting...")
 
-    keyboard_manager.stop()
-    camera_view.close()
-
-    # Graceful shutdown
-    try:
-        sim.disconnect()
-    except Exception:
-        pass  # Sometimes sim already closed
-
-    print("[Main] Simulation stopped.")
+    finally:
+        shutdown_simulation(keyboard_manager, camera_view, sim)
+        print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':
     main()
