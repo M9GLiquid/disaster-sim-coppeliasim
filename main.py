@@ -4,7 +4,7 @@ import time
 
 from disaster_area                     import create_disaster_area
 from Utils.scene_utils                 import clear_disaster_area, restart_disaster_area
-from Utils.config_utils                import get_default_config    # ← still build your dict
+from Utils.config_utils                import get_default_config
 
 from Controls.camera_setup             import setup_drone_camera
 from Controls.camera_view              import CameraView
@@ -18,18 +18,15 @@ from Managers.menu_system              import MenuSystem
 
 from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
 
-
 def main():
     event_manager    = EventManager()
     sim              = connect_to_simulation()
     print("[Main] Simulation connected.")
 
     sim.setStepping(True)
-
-    # build your config dict once
     config = get_default_config()
 
-    # camera
+    # camera & display
     cam_handle, target_handle = setup_drone_camera(sim, config)
     camera_view               = CameraView(sim, cam_handle)
     camera_view.start()
@@ -38,10 +35,9 @@ def main():
     keyboard_manager = KeyboardManager(event_manager)
     menu_system      = MenuSystem(event_manager, keyboard_manager, config)
     movement_manager = MovementManager(event_manager)
-
     register_drone_keyboard_mapper(event_manager, keyboard_manager)
 
-    #  ─── main menu → command dispatcher
+    # catch selections
     current_command = None
     def on_menu_selected(cmd):
         nonlocal current_command
@@ -50,7 +46,7 @@ def main():
 
     try:
         while True:
-            # ─── if user picked 1/3/4/q, handle here
+            # if a command arrived, run it first
             if current_command:
                 sim.acquireLock()
                 try:
@@ -68,9 +64,13 @@ def main():
                 finally:
                     sim.releaseLock()
 
+                # after execution, re-open chat menu (unless quitting)
+                if current_command != 'q':
+                    menu_system.open_chat()
+
                 current_command = None
 
-            # ─── drone movement from WASD/QE
+            # handle drone WASD/QE movement
             moves = movement_manager.get_moves()
             rots  = movement_manager.get_rotates()
             if moves or rots:
@@ -91,7 +91,7 @@ def main():
                 finally:
                     sim.releaseLock()
 
-            # ─── render & step
+            # update camera & step
             camera_view.update()
             for _ in range(3):
                 sim.step()

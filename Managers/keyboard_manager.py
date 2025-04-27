@@ -46,7 +46,6 @@ class KeyboardManager:
     def finish_typing(self, command):
         self.last_command = command
         self.typing_mode = False
-        print("[KeyboardManager] Exited typing mode.")
 
     def get_command(self):
         cmd = self.last_command
