@@ -2,11 +2,14 @@
 
 import math
 
-def register_drone_keyboard_mapper(event_manager):
+def register_drone_keyboard_mapper(event_manager, keyboard_manager):
     MOVE_STEP = 0.1
     ROTATE_STEP = math.radians(10)
 
     def on_key_pressed(key):
+        if keyboard_manager.in_typing_mode():
+            return 
+
         if key == 'w':
             event_manager.publish('keyboard/move', (0, MOVE_STEP, 0))
         elif key == 's':

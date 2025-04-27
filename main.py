@@ -3,75 +3,80 @@
 import time
 
 from disaster_area import create_disaster_area
-from dynamic_objects import create_all_dynamic
 
-from Utils.scene_utils import clear_disaster_area, restart_disaster_area
-from Utils.config_utils import get_default_config, modify_config
+from Utils.scene_utils      import clear_disaster_area, restart_disaster_area
+from Utils.config_utils     import get_default_config, modify_config
 
-from Controls.camera_setup import setup_drone_camera
-from Controls.camera_view import CameraView
+from Controls.camera_setup       import setup_drone_camera
+from Controls.camera_view        import CameraView
 
-from Core.event_manager import EventManager
-from Managers.keyboard_manager import KeyboardManager
+from Core.event_manager      import EventManager
+
 from Controls.drone_keyboard_mapper import register_drone_keyboard_mapper
-from Controls.typing_mode_handler import register_typing_mode_handler
-from Controls.keyboard_handlers import register_keyboard_handlers
+
+from Managers.typing_mode_manager    import TypingModeManager
+from Managers.menu_manager           import MenuManager
+from Managers.keyboard_manager       import KeyboardManager
+from Managers.movement_manager   import MovementManager
 
 from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
 
-def show_menu():
-    print("\n[Main Menu]")
-    print("  1 - Create disaster area")
-    print("  2 - Add dynamic flying objects (birds & junk)")
-    print("  3 - Restart disaster area")
-    print("  4 - Clear disaster area")
-    print("  9 - Modify configuration")
-    print("  q - Quit\n")
 
 def main():
-    event_manager = EventManager()
-    sim = connect_to_simulation()
+    event_manager    = EventManager()
+    sim              = connect_to_simulation()
     print("[Main] Simulation connected.")
 
+    # step-by-step mode
     sim.setStepping(True)
 
+    # load default parameters
     config = get_default_config()
 
-    camera_handle, target_handle = setup_drone_camera(sim, config)
-    camera_view = CameraView(sim, camera_handle)
+    # setup camera on the drone
+    cam_handle, target_handle = setup_drone_camera(sim, config)
+    camera_view               = CameraView(sim, cam_handle)
     camera_view.start()
 
+    # input & event systems
     keyboard_manager = KeyboardManager(event_manager)
-    register_drone_keyboard_mapper(event_manager)
-    register_typing_mode_handler(event_manager, keyboard_manager)
-    register_keyboard_handlers(event_manager, sim, target_handle)
+    typing_manager   = TypingModeManager(event_manager, keyboard_manager)
+    menu_manager     = MenuManager()
+    movement_manager = MovementManager(event_manager)
+
+    # map WASD/QE → move/rotate events
+    register_drone_keyboard_mapper(event_manager, keyboard_manager)
+
+    # chat-mode state
+    menu_active     = False
+    current_command = None
+    def on_command_ready(cmd):
+        nonlocal current_command
+        current_command = cmd
+    event_manager.subscribe('typing/command_ready', on_command_ready)
+
 
     try:
         while True:
-            keyboard_manager.process_keys()
+            # ─── Entering chat? show menu only once ───
+            if keyboard_manager.in_typing_mode() and not menu_active:
+                menu_manager.show_menu()
+                typing_manager.start_typing()
+                menu_active = True
 
-            if keyboard_manager.in_typing_mode():
-                show_menu()
-                sim.setStepping(False)
-                command = input(">> ").strip().lower()
-                sim.setStepping(True)
-                keyboard_manager.finish_typing(command)
-
-            command = keyboard_manager.get_command()
-            if command:
+            # ─── Command entered? dispatch ───
+            if current_command:
                 sim.acquireLock()
                 try:
-                    if command == '1':
+                    if current_command == '1':
                         create_disaster_area(sim, config)
-                    elif command == '2':
-                        create_all_dynamic(sim, config['area_size'], num_birds=1, num_junk=3)
-                    elif command == '3':
+                    elif current_command == '3':
                         restart_disaster_area(sim, config)
-                    elif command == '4':
+                    elif current_command == '4':
                         clear_disaster_area(sim)
-                    elif command == '9':
+                    elif current_command == '9':
                         modify_config(config)
-                    elif command == 'q':
+                    elif current_command == 'q':
                         print("[Main] Quit requested.")
                         break
                     else:
@@ -79,11 +84,37 @@ def main():
                 finally:
                     sim.releaseLock()
 
-            camera_view.update()
+                keyboard_manager.finish_typing(current_command)
+                current_command = None
+                menu_active     = False   # allow next menu show
 
+            # ─── Drone movement events ───
+            moves = movement_manager.get_moves()
+            rots  = movement_manager.get_rotates()
+            if moves or rots:
+                sim.acquireLock()
+                try:
+                    # apply translations
+                    for dx, dy, dz in moves:
+                        pos = sim.getObjectPosition(target_handle, -1)
+                        sim.setObjectPosition(
+                            target_handle, -1,
+                            [pos[0] + dx, pos[1] + dy, pos[2] + dz]
+                        )
+                    # apply yaw rotations
+                    for dr in rots:
+                        ori = sim.getObjectOrientation(target_handle, -1)
+                        sim.setObjectOrientation(
+                            target_handle, -1,
+                            [ori[0], ori[1], ori[2] + dr]
+                        )
+                finally:
+                    sim.releaseLock()
+
+            # ─── Update camera & step ───
+            camera_view.update()
             for _ in range(3):
                 sim.step()
-
             time.sleep(0.001)
 
     except KeyboardInterrupt:
@@ -92,6 +123,7 @@ def main():
     finally:
         shutdown_simulation(keyboard_manager, camera_view, sim)
         print("[Main] Shutdown complete.")
+
 
 if __name__ == '__main__':
     main()
