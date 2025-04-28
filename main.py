@@ -2,6 +2,7 @@
 
 import time
 
+from Managers.depth_dataset_collector   import DepthDatasetCollector
 from disaster_area                     import create_disaster_area
 from Utils.scene_utils                 import clear_disaster_area, restart_disaster_area
 from Utils.config_utils                import get_default_config
@@ -27,6 +28,17 @@ def main():
 
     # ─── Single RGB-D Sensor Setup ───
     cam_rgb, cam_depth, floating_view_rgb, floating_view_depth = setup_rgbd_camera(sim, config)  # <-- Modified to return cam_handle too
+
+    # ─── Depth Dataset Collector ───
+    depth_collector = DepthDatasetCollector(
+        sim, 
+        cam_depth, 
+        base_folder="data/depth_dataset", 
+        batch_size=100, 
+        save_every_n_frames=10, 
+        split_ratio=(0.98, 0.01, 0.01), 
+        event_manager=event_manager
+    )
 
     # ─── Movement target for drone control ───
     target_handle = sim.getObject('/target')
@@ -95,9 +107,10 @@ def main():
             try:
                 sim.handleVisionSensor(cam_rgb)
                 sim.handleVisionSensor(cam_depth)
+                depth_collector.capture()
             finally:
                 sim.releaseLock()
-            
+
             sim.step()
 
             time.sleep(0.001)
@@ -107,7 +120,7 @@ def main():
 
     finally:
         # ensure renderer closes its window
-        shutdown_simulation(keyboard_manager, floating_view_rgb, floating_view_depth, sim)
+        shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, floating_view_depth, sim)
         print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':

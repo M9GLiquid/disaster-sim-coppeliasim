@@ -10,6 +10,15 @@ def setup_rgbd_camera(sim, config):
 
     parent_handle = sim.getObject('/Quadcopter/base')
     target_handle = sim.getObject('/target')
+    target_handle = sim.getObject('/target')
+
+    # Fully disable physics interaction:
+    sim.setBoolProperty(target_handle, "collidable", False)
+    sim.setBoolProperty(target_handle, "respondable", False)
+
+    # (Optional) Also hide from depth buffer:
+    sim.setBoolProperty(target_handle, "depthInvisible", True)
+
 
     # Vision Sensor parameters
     options = 1 | 2  # bit 0 = explicitHandling, bit 1 = perspective projection
