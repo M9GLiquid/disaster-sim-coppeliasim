@@ -3,7 +3,6 @@
 import time
 
 from Managers.depth_dataset_collector    import DepthDatasetCollector
-from disaster_area                       import create_disaster_area
 from Utils.scene_utils                   import clear_disaster_area, restart_disaster_area
 from Utils.config_utils                  import get_default_config
 
@@ -11,6 +10,8 @@ from Sensors.rgbd_camera_setup           import setup_rgbd_camera
 from Controls.drone_keyboard_mapper      import register_drone_keyboard_mapper
 
 from Core.event_manager                  import EventManager
+
+from Managers.scene_manager              import create_scene
 from Managers.keyboard_manager           import KeyboardManager
 from Managers.menu_system                import MenuSystem
 from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
@@ -59,7 +60,7 @@ def main():
                 sim.acquireLock()
                 try:
                     if current_command == '1':
-                        create_disaster_area(sim, config)
+                        create_scene(sim, config)
                     elif current_command == '3':
                         restart_disaster_area(sim, config)
                     elif current_command == '4':

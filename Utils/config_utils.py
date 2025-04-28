@@ -16,11 +16,11 @@ FIELDS = [
 def get_default_config():
     return {
         "area_size": 10.0,
-        "num_trees": 25,
-        "fraction_standing": 0.4,
-        "num_rocks": 20,
+        "num_trees": 125,
+        "fraction_standing": 0.85,
+        "num_rocks": 55,
         "clear_zone_center": (0, 0),
-        "clear_zone_radius": 2.0,
+        "clear_zone_radius": 0.5,
         "verbose": False,
         "move_step": 0.2,
         "rotate_step_deg": 10.0,
