@@ -1,14 +1,20 @@
 # Managers/menu_manager.py
 
+from Managers.menu_interface import MenuInterface
+
 class MenuManager:
     def __init__(self):
-        pass
+        self.menus = {}
 
-    def show_menu(self):
-        print("\n[Main Menu]")
-        print("  1 - Create disaster area")
-        print("  2 - Add dynamic flying objects (birds & junk)")
-        print("  3 - Restart disaster area")
-        print("  4 - Clear disaster area")
-        print("  9 - Modify configuration")
-        print("  q - Quit\n")
+    def register(self, name: str, menu: MenuInterface):
+        self.menus[name] = menu
+
+    def get(self, name: str) -> MenuInterface:
+        return self.menus.get(name)
+
+    def show_menu(self, name: str):
+        menu = self.get(name)
+        if menu:
+            menu.on_open()
+        else:
+            print(f"[MenuManager] No menu found for '{name}'.")

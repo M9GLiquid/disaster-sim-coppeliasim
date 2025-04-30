@@ -1,6 +1,7 @@
 # Managers/scene_manager.py
 
 import random
+import math
 from Utils.terrain_elements import create_floor, create_tree, create_rock
 
 def create_scene(sim, config):
@@ -38,15 +39,12 @@ def create_scene(sim, config):
         handles.append(create_rock(sim, pos, size))
 
     # ─── Standing Trees ───
-    # 10% stumps (0.2–0.5m), 90% full (2.5–4.5m)
-    # Tilt distribution: 50% vertical, 30% lean 5–15°, 20% lean 15–30°
     for _ in range(n_stand):
         pos = _random_pos()
-
         if random.random() < 0.1:
-            length = random.uniform(0.2, 0.5)   # stump
+            length = random.uniform(0.2, 0.5)
         else:
-            length = random.uniform(2.5, 4.5)   # full tree
+            length = random.uniform(2.5, 4.5)
 
         r = random.random()
         if r < 0.5:
@@ -65,16 +63,10 @@ def create_scene(sim, config):
         ))
 
     # ─── Fallen Logs ───
-    # All small logs (0.5–1.0m), tilt 60%@90°, 30%@80°, 10%@45°
     for _ in range(n_fall):
         pos    = _random_pos()
         length = random.uniform(0.5, 1.0)
-        handles.append(create_tree(
-            sim,
-            pos,
-            fallen=True,
-            trunk_len=length
-        ))
+        handles.append(create_tree(sim, pos, fallen=True, trunk_len=length))
 
     # ─── Parent under group ───
     for h in handles[1:]:
@@ -82,4 +74,35 @@ def create_scene(sim, config):
             sim.setObjectParent(h, group, True)
 
     print(f"[SceneManager] Created {len(handles)-1} objects (floor, rocks, trees).")
+
+    # ─── Teleport entire quadcopter + target ───
+    try:
+        margin   = 1.0
+        z_height = 1.2
+        start_x  = (area_size / 2) + margin
+        start_y  = 0.0
+        new_pos  = [start_x, start_y, z_height]
+
+        # Compute yaw so the drone's FRONT (-X axis) points toward (0,0):
+        # vector from drone → center = (-start_x, -start_y)
+        # but since local front is -X, yaw = atan2(start_y, start_x)
+        yaw     = math.atan2(start_y, start_x)
+        new_ori = [0.0, 0.0, yaw]
+
+        sim.acquireLock()
+        try:
+            quad_root = sim.getObject('/Quadcopter')
+            sim.setObjectPosition   (quad_root, -1, new_pos)
+            sim.setObjectOrientation(quad_root, -1, new_ori)
+
+            tgt = sim.getObject('/target')
+            sim.setObjectPosition   (tgt, -1, new_pos)
+            sim.setObjectOrientation(tgt, -1, new_ori)
+        finally:
+            sim.releaseLock()
+
+        print(f"[SceneManager] Teleported QuadCopter & target to {new_pos}, yaw={yaw:.2f} rad.")
+    except Exception as e:
+        print(f"[SceneManager] Warning: teleport failed → {e}")
+
     return handles

@@ -26,11 +26,11 @@ def main():
     sim.setStepping(True)
     config = get_default_config()
 
-    cam_rgb, cam_depth, floating_view_rgb, floating_view_depth = setup_rgbd_camera(sim, config)
+    cam_rgb, floating_view_rgb, = setup_rgbd_camera(sim, config)
 
     depth_collector = DepthDatasetCollector(
         sim,
-        cam_depth,
+        cam_rgb,
         base_folder="data/depth_dataset",
         batch_size=100,
         save_every_n_frames=10,
@@ -84,7 +84,6 @@ def main():
             sim.acquireLock()
             try:
                 sim.handleVisionSensor(cam_rgb)
-                sim.handleVisionSensor(cam_depth)
                 depth_collector.capture()
             finally:
                 sim.releaseLock()
@@ -96,7 +95,7 @@ def main():
         print("\n[Main] KeyboardInterrupt received. Exiting...")
 
     finally:
-        shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, floating_view_depth, sim)
+        shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim)
         print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':

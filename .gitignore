@@ -13,5 +13,8 @@ Thumbs.db
 # Ignore IDE specific files
 .vscode/
 
-# Ignore Python cache
+# Ignore Folders
+Data/
 data/
+Misc/
+Docs/

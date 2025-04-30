@@ -43,26 +43,9 @@ def setup_rgbd_camera(sim, config):
         math.radians(-90)
     ])
 
-    # ─── Clone to create Depth Sensor ───
-    cam_depth = sim.copyPasteObjects([cam_rgb], 0)[0]
-    sim.setObjectAlias(cam_depth, "DroneSensorDepth")
-    sim.setObjectParent(cam_depth, parent_handle, False)
-    sim.setObjectPosition(cam_depth, parent_handle, [-0.1, 0.0, 0.0])
-    sim.setObjectOrientation(cam_depth, parent_handle, [
-        math.radians(0),
-        math.radians(-90),
-        math.radians(-90)
-    ])
-
-    # ─── Switch Depth Sensor to Depth Visualization ───
-    sim.setIntProperty(cam_depth, "renderMode", 1)  # 0 = RGB, 1 = Depth Buffer
-
     # ─── Create Floating Views ───
-    floating_view_rgb = sim.floatingViewAdd(0.75, 0.2, 0.2, 0.2, 0)
+    floating_view_rgb = sim.floatingViewAdd(0.75, 0.2, 1.0, 1.0, 0)
     sim.adjustView(floating_view_rgb, cam_rgb, 0)
-
-    floating_view_depth = sim.floatingViewAdd(0.95, 0.2, 0.2, 0.2, 0)
-    sim.adjustView(floating_view_depth, cam_depth, 0)
 
     # ─── Hide the target if needed ───
     if not config.get('verbose', False):
@@ -73,4 +56,4 @@ def setup_rgbd_camera(sim, config):
 
     print("[RGBCameraSetup] Sensors created and linked to floating views.")
 
-    return cam_rgb, cam_depth, floating_view_rgb, floating_view_depth
+    return cam_rgb, floating_view_rgb

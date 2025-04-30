@@ -10,7 +10,7 @@ from Utils.save_utils import save_batch_npz
 
 class DepthDatasetCollector:
     def __init__(self, sim, sensor_handle, event_manager,
-                 base_folder="depth_dataset",
+                 base_folder="Data/Depth_Dataset",
                  batch_size=500,
                  save_every_n_frames=10,
                  split_ratio=(0.98, 0.01, 0.01)):

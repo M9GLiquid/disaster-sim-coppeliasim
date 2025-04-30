@@ -42,7 +42,7 @@ def _wait_until_running(sim, timeout_sec=2.5):
             return
         time.sleep(0.05)
 
-def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, floating_view_depth, sim):
+def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim):
     """
     Cleanly shutdown keyboard control, camera viewer, and disconnect from simulation.
     """
@@ -55,7 +55,6 @@ def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, fl
     print("[SimConnection] Removing Camera View's...")
     try:
         sim.floatingViewRemove(floating_view_rgb)
-        sim.floatingViewRemove(floating_view_depth)
         depth_collector.stop()
 
     except Exception as e:
