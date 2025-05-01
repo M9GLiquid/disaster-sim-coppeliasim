@@ -75,14 +75,35 @@ def create_scene(sim, config):
         if sim.isHandleValid(h):
             sim.setObjectParent(h, group, True)
             
-        # ─── Move Quadcopter Out of Clear Zone ───
+    # ─── Position and Orient Quadcopter Outside Area Facing Center ───
     try:
-        quad_handle = sim.getObject('/Quadcopter')
-        safe_z = 1.0  # Hover height
-        sim.setObjectPosition(quad_handle, -1, [0, -config["area_size"]/2 + 1.0, safe_z])
-        print("[SceneManager] Quadcopter repositioned outside obstacle area.")
+        # Improved position calculation - place at eastern edge
+        margin = 1.0
+        z_height = 1.2  # Specific hover height
+        start_x = (config['area_size'] / 2) + margin  # Eastern edge
+        start_y = 0.0
+        new_pos = [start_x, start_y, z_height]
+
+        # Compute yaw so the drone's FRONT (-X axis) points toward center
+        yaw = math.atan2(start_y, start_x)  # Direction to face center
+        new_ori = [0.0, 0.0, yaw]
+
+        # Position and orient the Quadcopter
+        quad_root = sim.getObject('/Quadcopter')
+        sim.setObjectPosition(quad_root, -1, new_pos)
+        sim.setObjectOrientation(quad_root, -1, new_ori)
+        
+        # Sync target position with Quadcopter
+        try:
+            target = sim.getObject('/target')
+            sim.setObjectPosition(target, -1, new_pos)
+            sim.setObjectOrientation(target, -1, new_ori)
+        except Exception as e:
+            print(f"[SceneManager] Warning: Could not reposition target: {e}")
+
+        print(f"[SceneManager] Teleported QuadCopter & target to {new_pos}, yaw={yaw:.2f} rad.")
     except Exception as e:
-        print(f"[SceneManager] Warning: Could not reposition Quadcopter: {e}")
+        print(f"[SceneManager] Warning: teleport failed → {e}")
 
     # ─── Hide Target from Rendering and Depth ───
     try:

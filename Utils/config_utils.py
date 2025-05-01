@@ -10,6 +10,7 @@ FIELDS = [
     {"key": "move_step",         "desc": "Drone move step [m]",      "type": float},
     {"key": "rotate_step_deg",   "desc": "Drone rotate step [deg]",  "type": float},
     {"key": "verbose",           "desc": "Verbose mode (toggle)",    "type": bool},
+    {"key": "drone_spawn_margin", "desc": "Drone spawn margin [m]",    "type": float},
 ]
 
 # ─── Get Default Config ───
@@ -24,4 +25,5 @@ def get_default_config():
         "verbose": False,
         "move_step": 0.2,
         "rotate_step_deg": 10.0,
+        "drone_spawn_margin": 1.0,
     }

@@ -20,12 +20,11 @@ def main():
     sim = connect_to_simulation()
     print("[Main] Simulation connected.")
 
-    # application running flag and quit handler
-    running = True
+    # monitor quit event
+    running = {'flag': True}
     def _on_app_quit(_):
-        nonlocal running
-        print("[Main] app/quit received, exiting main loop.")
-        running = False
+        print("[Main] app/quit received, stopping simulation thread.")
+        running['flag'] = False
     event_manager.subscribe('app/quit', _on_app_quit)
 
     sim_command_queue = queue.Queue()
@@ -44,36 +43,36 @@ def main():
         event_manager=event_manager
     )
 
-    # Input & control
+    # Input & control setup
     keyboard_manager = KeyboardManager(event_manager)
-    menu_system     = MenuSystem(event_manager, keyboard_manager, sim, config, sim_command_queue)
     register_drone_keyboard_mapper(event_manager, keyboard_manager, config)
     drone_control_manager = DroneControlManager(event_manager, sim)
-    print("[Main] Drone command active. Press ENTER to open the menu.")
 
-    timestep = 0.05  # 50 ms steps
-    try:
-        while running:
+    # Start simulation loop in background thread
+    import threading
+    def sim_loop():
+        timestep = 0.05
+        while running['flag']:
             with sim_lock(sim) as locked:
                 if locked:
                     drone_control_manager.update(timestep)
                     while not sim_command_queue.empty():
                         fn, args, kwargs = sim_command_queue.get()
                         fn(sim, *args, **kwargs)
-                        # publish scene created event when scene is (re)built
                         if fn.__name__ in ("create_scene", "restart_disaster_area"):
                             event_manager.publish("scene/created", None)
                     sim.handleVisionSensor(cam_rgb)
                     depth_collector.capture()
-            safe_step(sim)
+            safe_step(sim) 
             time.sleep(timestep)
+    threading.Thread(target=sim_loop, daemon=True).start()
 
-    except KeyboardInterrupt:
-        print("\n[Main] KeyboardInterrupt received. Exiting...")
-
-    finally:
-        shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim)
-        print("[Main] Shutdown complete.")
+    # Launch GUI menu (blocks until quit)
+    menu_system = MenuSystem(event_manager, sim, config, sim_command_queue)
+    menu_system.run()
+    # After GUI closes, perform shutdown
+    shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim)
+    print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':
     main()
