@@ -24,5 +24,11 @@ class DroneControlManager:
         self._yaw_rate += delta
 
     def update(self, dt):
-        self.camera_movement_controller.update(self._forward, self._sideward, self._upward, self._yaw_rate, dt)
+        self.camera_movement_controller.update(
+            self._forward, 
+            self._sideward, 
+            self._upward, 
+            self._yaw_rate, 
+            dt
+        )
         self._forward = self._sideward = self._upward = self._yaw_rate = 0.0

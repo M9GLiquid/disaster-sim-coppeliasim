@@ -1,6 +1,6 @@
 # Managers/config_menu.py
 
-from Managers.menu_interface import MenuInterface
+from Interfaces.menu_interface import MenuInterface
 from Utils.config_utils import FIELDS
 
 class ConfigMenu(MenuInterface):
@@ -43,6 +43,7 @@ class ConfigMenu(MenuInterface):
             try:
                 self.config[key] = field_type(val)
                 print(f"[ConfigMenu] {field['desc']} updated to {self.config[key]}")
+                self.event_manager.publish("config/updated", None)
             except ValueError:
                 print("[ConfigMenu] Invalid input. Please enter correct type.")
 

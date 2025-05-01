@@ -1,6 +1,6 @@
 # Managers/menu_manager.py
 
-from Managers.menu_interface import MenuInterface
+from Interfaces.menu_interface import MenuInterface
 
 class MenuManager:
     def __init__(self):

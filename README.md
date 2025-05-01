@@ -21,39 +21,68 @@ The system supports manual control, dataset collection for AI training, and dyna
 
 ## Project Structure
 
-| Folder/File                                      | Purpose                                                                                         |
-|--------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `.gitignore`                                     | Specifies files and directories for Git to ignore                                               |
-| `README.md`                                      | Project overview, setup instructions, and usage guide                                           |
-| `main.py`                                        | Entry point: initializes sim, menus, controls, and runs the main loop                           |
-| **Controls/**                                    | Mapping from high-level commands to drone movements                                             |
-| `Controls/drone_control_manager.py`               | Orchestrates keyboard events into velocity & rotation targets                                   |
-| `Controls/drone_keyboard_mapper.py`               | Maps WASD/QE/Space/Z keys to `keyboard/move` and `keyboard/rotate` events                       |
-| `Controls/drone_movement_transformer.py`          | Transforms local forward/side/up + yaw-rate into world-frame velocities and applies them        |
-| `Controls/target_mover.py`                        | Moves the `/target` dummy with simple inertia toward desired velocities and yaw rates           |
-| **Core/**                                        | Publish/subscribe event dispatch system                                                         |
-| `Core/event_manager.py`                          | Thread-safe `subscribe`/`publish` messaging for decoupled modules                               |
-| **Managers/Connections/**                         | CoppeliaSim connection and shutdown helpers                                                     |
-| `Managers/Connections/sim_connection.py`         | Connects to CoppeliaSim via ZMQ, starts/stops simulation, and handles clean shutdown            |
-| **Managers/**                                     | High-level orchestration: input, menus, scene creation, data collection                         |
-| `Managers/keyboard_manager.py`                    | Low-level, cross-platform raw key capture thread that publishes `keyboard/key_pressed`          |
-| `Managers/typing_mode_manager.py`                 | Gathers typed characters when in “chat” mode, emits `typing/command_ready` or `typing/exit`    |
-| `Managers/menu_interface.py`                      | Abstract base class defining `on_open`, `on_command`, and `on_exit` hooks for menus            |
-| `Managers/menu_manager.py`                        | Registry and dispatcher for named menus (`main`, `config`, etc.)                                |
-| `Managers/menu_system.py`                         | Routes ENTER/ESC to open/close menus, dispatches commands to the active menu                    |
-| `Managers/scene_manager.py`                       | Procedurally generates floor, trees, rocks; teleports drone & target; places the victim        |
-| `Managers/depth_dataset_collector.py`             | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files   |
-| **Menus/**                                       | Concrete menu implementations conforming to `MenuInterface`                                      |
-| `Menus/main_menu.py`                              | Shows “Create”, “Restart”, “Clear”, “Config”, and “Quit” options; publishes `menu/selected`     |
-| `Menus/config_menu.py`                            | Lists editable config fields (key + description), lets you toggle/update values                 |
-| **Sensors/**                                     | Camera setup utilities                                                                          |
-| `Sensors/rgbd_camera_setup.py`                    | Attaches an RGB & depth vision sensor to the drone, sets up floating views                      |
-| **Utils/**                                       | Standalone helpers: configuration, scene clearing, terrain, saving & capture functions          |
-| `Utils/config_utils.py`                           | Defines `FIELDS` schema and `get_default_config()` with all adjustable parameters               |
-| `Utils/scene_utils.py`                            | Starts/stops simulation if needed, clears `DisasterGroup`, calls `create_scene` under the hood  |
-| `Utils/terrain_elements.py`                       | Creates floor, trees (fallen/standing), and rocks primitives                                    |
-| `Utils/capture_utils.py`                          | Grabs depth images and drone pose from the sim                                                  |
-| `Utils/save_utils.py`                             | Saves batches of depth/pose/actions/victim_dirs in compressed `.npz` files                      |
+| Folder/File                             | Purpose                                                                                         |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------|
+| `.gitignore`                            | Specifies files and directories for Git to ignore                                               |
+| `README.md`                             | Project overview, setup instructions, and usage guide                                           |
+| `main.py`                               | Entry point: initializes sim, menus, controls, and runs the main loop                           |
+
+**Controls/**
+
+| Folder/File                       | Purpose                                                                                         |
+|-----------------------------------|-------------------------------------------------------------------------------------------------|
+| `drone_control_manager.py`        | Orchestrates keyboard events into velocity & rotation targets                                   |
+| `drone_keyboard_mapper.py`        | Maps WASD/QE/Space/Z keys to `keyboard/move` and `keyboard/rotate` events                       |
+| `drone_movement_transformer.py`   | Transforms local forward/side/up + yaw-rate into world-frame velocities and applies them        |
+| `target_mover.py`                 | Moves the `/target` dummy with simple inertia toward desired velocities and yaw rates           |
+
+**Core/**
+
+| Folder/File             | Purpose                                                         |
+|-------------------------|-----------------------------------------------------------------|
+| `event_manager.py`      | Thread-safe `subscribe`/`publish` messaging for decoupled modules|
+
+**Managers/**
+
+| Folder/File                      | Purpose                                                                                                   |
+|----------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `keyboard_manager.py`            | Low-level, cross-platform raw key capture thread that publishes `keyboard/key_pressed`                    |
+| `typing_mode_manager.py`         | Gathers typed characters in “chat” mode, emits `typing/command_ready` or `typing/exit`                   |
+| `menu_interface.py`              | Abstract base class defining `on_open`, `on_command`, and `on_exit` hooks for menus                       |
+| `menu_manager.py`                | Registry and dispatcher for named menus (`main`, `config`, etc.)                                         |
+| `menu_system.py`                 | Routes ENTER/ESC to open/close menus, dispatches commands to the active menu                              |
+| `scene_manager.py`               | Procedurally generates floor, trees, rocks; teleports drone & target; places the victim                  |
+| `depth_dataset_collector.py`     | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files            |
+
+**Managers/Connections/**
+
+| Folder/File                | Purpose                                                                 |
+|----------------------------|-------------------------------------------------------------------------|
+| `sim_connection.py`       | Connects to CoppeliaSim via ZMQ, starts/stops simulation, and handles clean shutdown|
+
+**Menus/**
+
+| Folder/File           | Purpose                                                                                           |
+|-----------------------|---------------------------------------------------------------------------------------------------|
+| `main_menu.py`        | Shows “Create”, “Restart”, “Clear”, “Config”, and “Quit” options; publishes `menu/selected`       |
+| `config_menu.py`      | Lists editable config fields (key + description), lets you toggle/update values                   |
+
+**Sensors/**
+
+| Folder/File                  | Purpose                                                          |
+|------------------------------|------------------------------------------------------------------|
+| `rgbd_camera_setup.py`       | Attaches an RGB & depth vision sensor to the drone, sets up floating views |
+
+**Utils/**
+
+| Folder/File                   | Purpose                                                                 |
+|-------------------------------|-------------------------------------------------------------------------|
+| `config_utils.py`             | Defines `FIELDS` schema and `get_default_config()` with adjustable parameters |
+| `scene_utils.py`              | Starts/stops simulation if needed, clears `DisasterGroup`, calls `create_scene` |
+| `terrain_elements.py`         | Creates floor, trees (fallen/standing), and rocks primitives            |
+| `capture_utils.py`            | Grabs depth images and drone pose from the sim                          |
+| `save_utils.py`               | Saves batches of depth/pose/actions/victim_dirs in compressed `.npz` files |
+
 
 
 ---

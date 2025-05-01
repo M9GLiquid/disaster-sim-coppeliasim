@@ -12,6 +12,8 @@ Thumbs.db
 
 # Ignore IDE specific files
 .vscode/
+# Ignore Copilot data
+.copilot/
 
 # Ignore Folders
 Data/

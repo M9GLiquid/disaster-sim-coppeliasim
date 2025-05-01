@@ -44,7 +44,7 @@ def _wait_until_running(sim, timeout_sec=2.5):
 
 def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim):
     """
-    Cleanly shutdown keyboard control, camera viewer, and disconnect from simulation.
+    Cleanly shutdown keyboard control, camera viewer, disconnect from simulation.
     """
     print("[SimConnection] Shutting down KeyboardManager...")
     try:
@@ -52,19 +52,23 @@ def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, si
     except Exception as e:
         print(f"[SimConnection] Error stopping KeyboardManager: {e}")
 
-    print("[SimConnection] Removing Camera View's...")
+    # Remove camera floating view
+    print("[SimConnection] Removing Camera View...")
     try:
         sim.floatingViewRemove(floating_view_rgb)
-        depth_collector.stop()
-
     except Exception as e:
-        print(f"[SimConnection] Error Removing Camera View's: {e}")
+        print(f"[SimConnection] Error removing Camera View: {e}")
+
+    # Shutdown depth dataset collector
+    print("[SimConnection] Shutting down DepthDatasetCollector...")
+    try:
+        depth_collector.shutdown()
+    except Exception as e:
+        print(f"[SimConnection] Error shutting down DepthDatasetCollector: {e}")
 
     print("[SimConnection] Disconnecting Remote API client...")
     try:
         sim.stopSimulation()
-        print("[SimConnection] Client disconnected.")
+        print("[SimConnection] Simulation stopped.")
     except Exception as e:
-        print(f"[SimConnection] Error during client disconnect: {e}")
-
-    print("[SimConnection] Shutdown complete.")
+        print(f"[SimConnection] Error during simulation stop: {e}")

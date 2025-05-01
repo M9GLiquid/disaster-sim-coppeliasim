@@ -101,3 +101,24 @@ def create_rock(sim, position, size):
     ])
     sim.setObjectAlias(rock, f"Rock_{rock}")
     return rock
+
+def create_victim(sim, position=(0, 0), size=(0.3, 0.1, 1.2)):
+    """
+    Create a thin red rectangular box representing the victim.
+    Default height: 1.2 m standing figure.
+    """
+    # create a disc of 0.5m diameter and 0.5m thickness instead of cuboid
+    dims = [0.5, 0.5, 0.5]
+    victim = sim.createPrimitiveShape(sim.primitiveshape_cylinder, dims, 0)
+    sim.setObjectAlias(victim, "Victim")
+    sim.setBoolProperty(victim, "collidable", False)
+    sim.setBoolProperty(victim, "respondable", False)
+    sim.setBoolProperty(victim, "dynamic", False)
+    sim.setShapeColor(victim, None, sim.colorcomponent_ambient_diffuse, [1.0, 0.2, 0.2])  # red
+
+    x, y = position
+    z = FLOOR_THICKNESS + dims[2] / 2  # Center the disc vertically above ground
+    sim.setObjectPosition(victim, -1, [x, y, z])
+    sim.setObjectOrientation(victim, -1, [0, 0, 0])  # upright
+
+    return victim
