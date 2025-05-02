@@ -11,19 +11,19 @@ def connect_to_simulation(timeout_sec=2.5):
 
     If the simulation is stopped, start it and wait until running.
     """
-    print("[SimConnection] Connecting to CoppeliaSim...")
+    print("[Connection] Connecting to CoppeliaSim...")
     client = RemoteAPIClient()
     sim = client.require('sim')
 
     sim_state = sim.getSimulationState()
     if sim_state == sim.simulation_advancing_running:
-        print("[SimConnection] Simulation already running.")
+        print("[Connection] Simulation already running.")
     elif sim_state == sim.simulation_stopped:
-        print("[SimConnection] Simulation stopped. Starting...")
+        print("[Connection] Simulation stopped. Starting...")
         sim.startSimulation()
         _wait_until_running(sim, timeout_sec)
     else:
-        print(f"[SimConnection] Unexpected simulation state: {sim_state}")
+        print(f"[Connection] Unexpected simulation state: {sim_state}")
 
     return sim
 
@@ -35,10 +35,10 @@ def _wait_until_running(sim, timeout_sec=2.5):
     while True:
         state = sim.getSimulationState()
         if state == sim.simulation_advancing_running:
-            print("[SimConnection] Simulation is running.")
+            print("[Connection] Simulation is running.")
             return
         if time.time() - start_time > timeout_sec:
-            print("[SimConnection] Timeout while waiting for simulation to start.")
+            print("[Connection] Timeout while waiting for simulation to start.")
             return
         time.sleep(0.05)
 
@@ -46,29 +46,29 @@ def shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, si
     """
     Cleanly shutdown keyboard control, camera viewer, disconnect from simulation.
     """
-    print("[SimConnection] Shutting down KeyboardManager...")
+    print("[Connection] Shutting down KeyboardManager...")
     try:
         keyboard_manager.stop()
     except Exception as e:
-        print(f"[SimConnection] Error stopping KeyboardManager: {e}")
+        print(f"[Connection] Error stopping KeyboardManager: {e}")
 
     # Remove camera floating view
-    print("[SimConnection] Removing Camera View...")
+    print("[Connection] Removing Camera View...")
     try:
         sim.floatingViewRemove(floating_view_rgb)
     except Exception as e:
-        print(f"[SimConnection] Error removing Camera View: {e}")
+        print(f"[Connection] Error removing Camera View: {e}")
 
     # Shutdown depth dataset collector
-    print("[SimConnection] Shutting down DepthDatasetCollector...")
+    print("[Connection] Shutting down DepthDatasetCollector...")
     try:
         depth_collector.shutdown()
     except Exception as e:
-        print(f"[SimConnection] Error shutting down DepthDatasetCollector: {e}")
+        print(f"[Connection] Error shutting down DepthDatasetCollector: {e}")
 
-    print("[SimConnection] Disconnecting Remote API client...")
+    print("[Connection] Disconnecting Remote API client...")
     try:
         sim.stopSimulation()
-        print("[SimConnection] Simulation stopped.")
+        print("[Connection] Simulation stopped.")
     except Exception as e:
-        print(f"[SimConnection] Error during simulation stop: {e}")
+        print(f"[Connection] Error during simulation stop: {e}")

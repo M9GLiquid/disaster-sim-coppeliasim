@@ -2,7 +2,7 @@
 
 from Interfaces.menu_interface import MenuInterface
 from Utils.scene_utils import clear_disaster_area, restart_disaster_area
-from Managers.scene_manager import create_scene
+from Managers.scene_core import create_scene_queued
 import sys
 
 class MainMenu(MenuInterface):
@@ -19,7 +19,6 @@ class MainMenu(MenuInterface):
             ('1', 'Create disaster area', self._handle_create),
             ('2', 'Add dynamic flying objects', self._handle_dynamic),
             ('3', 'Restart disaster area', self._handle_restart),
-            ('4', 'Clear disaster area', self._handle_clear),
             ('9', 'Modify configuration', lambda: 'menu/config'),
             ('q', 'Quit', self._handle_quit),
         ]
@@ -33,11 +32,11 @@ class MainMenu(MenuInterface):
         for key, _, handler in self.entries:
             if cmd == key:
                 return handler()
-        print("[MainMenu] Unknown command.")
+        print("[Main Menu] Unknown command.")
         return None
 
     def _handle_create(self):
-        self.sim_queue.put((create_scene, [self.config], {}))
+        self.sim_queue.put((create_scene_queued, [self.config], {}))
         return None
 
     def _handle_restart(self):
@@ -49,11 +48,11 @@ class MainMenu(MenuInterface):
         return None
 
     def _handle_dynamic(self):
-        print("[MainMenu] Dynamic objects feature not yet implemented.")
+        print("[Main Menu] Dynamic objects feature not yet implemented.")
         return None
 
     def _handle_quit(self):
-        print("[MainMenu] Quit requested.")
+        print("[Main Menu] Quit requested.")
         # signal application to quit via event
         self.event_manager.publish('app/quit', None)
         return None
@@ -68,4 +67,4 @@ class MainMenu(MenuInterface):
                 if isinstance(result, str):
                     self.event_manager.publish("menu/change", result)
                 return
-        print("[MainMenu] Unknown command via event.")
+        print("[Main Menu] Unknown command via event.")

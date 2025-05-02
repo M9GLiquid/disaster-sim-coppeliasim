@@ -12,11 +12,15 @@ Thumbs.db
 
 # Ignore IDE specific files
 .vscode/
-# Ignore Copilot data
-.copilot/
 
 # Ignore Folders
 Data/
 data/
 Misc/
 Docs/
+
+# Ignore .gitignore
+.gitignore
+
+# Ignore Agent specific files
+copilot-agent-instructions.md

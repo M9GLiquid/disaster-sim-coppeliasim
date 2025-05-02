@@ -7,7 +7,7 @@ def sim_lock(sim):
         sim.acquireLock()
         locked = True
     except Exception as e:
-        print(f"[LockUtils] Could not acquire simulation lock: {e}")
+        print(f"[Lock] Could not acquire simulation lock: {e}")
     try:
         yield locked
     finally:
@@ -15,4 +15,4 @@ def sim_lock(sim):
             try:
                 sim.releaseLock()
             except Exception as e:
-                print(f"[LockUtils] Could not release simulation lock: {e}")
+                print(f"[Lock] Could not release simulation lock: {e}")

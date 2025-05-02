@@ -23,30 +23,30 @@ def start_sim_if_needed(timeout_sec=2.5):
     sim_state = sim.getSimulationState()
 
     if sim_state == SIMULATION_ADVANCING_RUNNING:
-        print("[SceneUtils] Simulation already running.")
+        print("[Scene] Simulation already running.")
         return sim
 
     if sim_state == SIMULATION_STOPPED:
-        print("[SceneUtils] Starting simulation...")
+        print("[Scene] Starting simulation...")
         sim.startSimulation()
         start_time = time.time()
         while True:
             try:
                 if sim.getSimulationState() == SIMULATION_ADVANCING_RUNNING:
-                    print("[SceneUtils] Simulation started (confirmed running).")
+                    print("[Scene] Simulation started (confirmed running).")
                     return sim
             except Exception:
                 pass
             if time.time() - start_time > timeout_sec:
                 current = sim.getSimulationState()
                 if current == SIMULATION_STOPPED:
-                    print("[SceneUtils] Warning: Start timeout. Still stopped, assuming running.")
+                    print("[Scene] Warning: Start timeout. Still stopped, assuming running.")
                 else:
-                    print(f"[SceneUtils] Warning: Start timeout. State={current}. Proceeding anyway.")
+                    print(f"[Scene] Warning: Start timeout. State={current}. Proceeding anyway.")
                 return sim
             time.sleep(0.05)
     else:
-        print(f"[SceneUtils] Unexpected state {sim_state}. Continuing.")
+        print(f"[Scene] Unexpected state {sim_state}. Continuing.")
         return sim
 
 def clear_disaster_area(sim):
@@ -69,21 +69,29 @@ def clear_disaster_area(sim):
             except Exception:
                 pass
 
-            print("[SceneUtils] DisasterGroup and all contents cleared.")
+            print("[Scene] DisasterGroup and all contents cleared.")
         else:
-            print("[SceneUtils] No DisasterGroup found.")
+            print("[Scene] No DisasterGroup found.")
     except Exception as e:
-        print(f"[SceneUtils] Error clearing DisasterGroup: {e}")
+        print(f"[Scene] Error clearing DisasterGroup: {e}")
 
-def restart_disaster_area(sim, config):
+def restart_disaster_area(sim, config, event_manager=None):
     """
     Clears the DisasterGroup, then rebuilds the scene (including drone teleport).
+    
+    Args:
+        sim: The simulation handle
+        config: Configuration dictionary
+        event_manager: Optional event manager for event-based scene creation
     """
-    from Managers.scene_manager import create_scene
+    from Managers.scene_core import create_scene
 
-    print("[SceneUtils] Restarting disaster area (no sim stop).")
+    print("[Scene] Restarting disaster area (no sim stop).")
 
     clear_disaster_area(sim)
-    create_scene(sim, config)
-    print("[SceneUtils] New disaster created.")
-    # create_scene already does the teleport for the drone & target
+    # Pass event_manager to create_scene if available
+    if event_manager:
+        create_scene(sim, config, event_manager=event_manager)
+    else:
+        create_scene(sim, config)
+    print("[Scene] New disaster created.")

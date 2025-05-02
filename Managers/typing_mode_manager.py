@@ -25,7 +25,7 @@ class TypingModeManager:
                 cmd = self.current_buffer.strip().lower()
                 self.event_manager.publish('typing/command_ready', cmd)
                 self.current_buffer = ""
-                print("\n[TypingModeManager] Command submitted.")
+                print("\n[Chat] Command submitted.")
             else:
                 # empty buffer: exit chat
                 self.event_manager.publish('typing/exit', None)

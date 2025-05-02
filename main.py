@@ -14,6 +14,8 @@ from Managers.Connections.sim_connection import connect_to_simulation, shutdown_
 from Controls.drone_control_manager      import DroneControlManager
 from Utils.lock_utils                    import sim_lock
 from Utils.sim_utils                     import safe_step
+from Managers.scene_progressive          import update_progressive_scene_creation, set_current_creator
+from Utils.physics_utils                 import configure_bullet_engine
 
 def main():
     event_manager = EventManager()
@@ -31,6 +33,9 @@ def main():
 
     sim.setStepping(True)
     config = get_default_config()
+    
+    # Configure Bullet physics engine for optimal performance
+    configure_bullet_engine(sim, config)
 
     # Setup camera & data collection
     cam_rgb, floating_view_rgb = setup_rgbd_camera(sim, config)
@@ -56,11 +61,30 @@ def main():
             with sim_lock(sim) as locked:
                 if locked:
                     drone_control_manager.update(timestep)
+                    
+                    # Process scene commands from queue
                     while not sim_command_queue.empty():
                         fn, args, kwargs = sim_command_queue.get()
-                        fn(sim, *args, **kwargs)
-                        if fn.__name__ in ("create_scene", "restart_disaster_area"):
-                            event_manager.publish("scene/created", None)
+                        
+                        # Handle the case where the function is create_scene_progressive
+                        if fn.__name__ == "create_scene_progressive":
+                            # Make sure event_manager is included in the args
+                            if 'event_manager' not in kwargs:
+                                kwargs['event_manager'] = event_manager
+                            # Set the creator as the current creator for update_progressive_scene_creation
+                            creator = fn(sim, *args, **kwargs)
+                            set_current_creator(creator)
+                        else:
+                            result = fn(sim, *args, **kwargs)
+                            if fn.__name__ in ("create_scene", "restart_disaster_area"):
+                                event_manager.publish("scene/created", None)
+                    
+                    # Update progressive scene creation if active
+                    if update_progressive_scene_creation():
+                        # If scene creation is still running, this returns True
+                        pass
+                        
+                    # Handle vision sensor
                     sim.handleVisionSensor(cam_rgb)
                     depth_collector.capture()
             safe_step(sim) 

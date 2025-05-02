@@ -47,11 +47,12 @@ The system supports manual control, dataset collection for AI training, and dyna
 | Folder/File                      | Purpose                                                                                                   |
 |----------------------------------|-----------------------------------------------------------------------------------------------------------|
 | `keyboard_manager.py`            | Low-level, cross-platform raw key capture thread that publishes `keyboard/key_pressed`                    |
-| `typing_mode_manager.py`         | Gathers typed characters in “chat” mode, emits `typing/command_ready` or `typing/exit`                   |
+| `typing_mode_manager.py`         | Gathers typed characters in "chat" mode, emits `typing/command_ready` or `typing/exit`                   |
 | `menu_interface.py`              | Abstract base class defining `on_open`, `on_command`, and `on_exit` hooks for menus                       |
 | `menu_manager.py`                | Registry and dispatcher for named menus (`main`, `config`, etc.)                                         |
 | `menu_system.py`                 | Routes ENTER/ESC to open/close menus, dispatches commands to the active menu                              |
-| `scene_manager.py`               | Procedurally generates floor, trees, rocks; teleports drone & target; places the victim                  |
+| `scene_core.py`                  | Core functionality for scene generation with floor, trees, rocks                                         |
+| `scene_progressive.py`           | Handles progressive procedural scene generation with event-driven updates                               |
 | `depth_dataset_collector.py`     | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files            |
 
 **Managers/Connections/**

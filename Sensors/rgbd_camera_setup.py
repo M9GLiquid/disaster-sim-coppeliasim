@@ -1,4 +1,5 @@
 import math
+from Utils.physics_utils import set_collision_properties
 
 def setup_rgbd_camera(sim, config):
     """
@@ -6,19 +7,16 @@ def setup_rgbd_camera(sim, config):
     and links them to floating views.
     Returns both camera handles and floating view handles.
     """
-    print("[RGBCameraSetup] Creating combined RGB/depth sensors...")
+    print("[Camera] Creating combined RGB/depth sensors...")
 
-    parent_handle = sim.getObject('/Quadcopter/base')
-    target_handle = sim.getObject('/target')
+    parent_handle = sim.getObject('/Quadcopter')
     target_handle = sim.getObject('/target')
 
-    # Fully disable physics interaction:
-    sim.setBoolProperty(target_handle, "collidable", False)
-    sim.setBoolProperty(target_handle, "respondable", False)
+    # Disable collision using our centralized function
+    set_collision_properties(sim, target_handle, enable_collision=False)
 
     # (Optional) Also hide from depth buffer:
     sim.setBoolProperty(target_handle, "depthInvisible", True)
-
 
     # Vision Sensor parameters
     options = 1 | 2  # bit 0 = explicitHandling, bit 1 = perspective projection

@@ -25,9 +25,9 @@ class ConfigMenu(MenuInterface):
             elif 0 <= idx < len(self.fields):
                 self._modify_field(idx)
             else:
-                print("[ConfigMenu] Invalid selection.")
+                print("[Config Menu] Invalid selection.")
         except ValueError:
-            print("[ConfigMenu] Please enter a number.")
+            print("[Config Menu] Please enter a number.")
         return None
 
     def _modify_field(self, index: int):
@@ -37,15 +37,15 @@ class ConfigMenu(MenuInterface):
 
         if field_type is bool:
             self.config[key] = not self.config[key]
-            print(f"[ConfigMenu] {field['desc']} toggled to {self.config[key]}")
+            print(f"[Config Menu] {field['desc']} toggled to {self.config[key]}")
         else:
             val = input(f"Enter new value for {field['desc']}: ").strip()
             try:
                 self.config[key] = field_type(val)
-                print(f"[ConfigMenu] {field['desc']} updated to {self.config[key]}")
+                print(f"[Config Menu] {field['desc']} updated to {self.config[key]}")
                 self.event_manager.publish("config/updated", None)
             except ValueError:
-                print("[ConfigMenu] Invalid input. Please enter correct type.")
+                print("[Config Menu] Invalid input. Please enter correct type.")
 
     def on_exit(self):
-        print("[ConfigMenu] Returning to main menu.")
+        print("[Config Menu] Returning to main menu.")

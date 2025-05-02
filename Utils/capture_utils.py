@@ -16,7 +16,7 @@ def capture_pose(sim):
     """
     Capture and return drone pose (position + orientation).
     """
-    parent_handle = sim.getObject('/Quadcopter/base')
+    parent_handle = sim.getObject('/Quadcopter')
     pos = sim.getObjectPosition(parent_handle, -1)
     ori = sim.getObjectOrientation(parent_handle, -1)
     return np.array([pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]], dtype=np.float32)

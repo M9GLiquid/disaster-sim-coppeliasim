@@ -16,6 +16,17 @@ class EventManager:
             self.listeners[topic].append(callback)
         print(f"[EventManager] Subscribed to topic '{topic}'.")
 
+    def unsubscribe(self, topic, callback):
+        """
+        Unsubscribe a specific callback from a topic.
+        """
+        with self.lock:
+            if topic in self.listeners and callback in self.listeners[topic]:
+                self.listeners[topic].remove(callback)
+                print(f"[EventManager] Unsubscribed from topic '{topic}'.")
+            else:
+                print(f"[EventManager] Warning: Could not unsubscribe from topic '{topic}' - callback not found.")
+
     def publish(self, topic, data=None):
         """
         Publish an event to all subscribers of a topic.

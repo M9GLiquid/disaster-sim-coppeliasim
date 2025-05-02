@@ -5,7 +5,8 @@ import numpy as np
 
 from Utils.capture_utils import capture_depth, capture_pose, capture_dummy_distance
 from Utils.save_utils import save_batch_npz
-from Managers.scene_manager import get_victim_direction
+from Managers.scene_core import get_victim_direction
+from Utils.config_utils import get_default_config
 
 class DepthDatasetCollector:
     def __init__(self, sim, sensor_handle, event_manager,
@@ -16,6 +17,10 @@ class DepthDatasetCollector:
         """
         Main depth dataset collector.
         """
+        # Verbose logging flag from configuration
+        self.verbose = get_default_config().get('verbose', False)
+        # Listen for config updates
+        event_manager.subscribe('config/updated', self._on_config_updated)
         self.sim = sim
         self.sensor_handle = sensor_handle
         self.base_folder = base_folder
@@ -69,8 +74,11 @@ class DepthDatasetCollector:
         """
         Activate data collection once the scene is created.
         """
-        print("[DepthCollector] Scene created event received. Activating data capture.")
-        self.active = True
+        # Only activate once
+        if not self.active:
+            if self.verbose:
+                print("[DepthCollector] Scene created event received. Activating data capture.")
+            self.active = True
 
     def capture(self):
         # skip capturing until scene is initialized
@@ -81,14 +89,15 @@ class DepthDatasetCollector:
             depth_img = capture_depth(self.sim, self.sensor_handle)
             pose     = capture_pose(self.sim)
             distance = capture_dummy_distance()
-            victim_dir = get_victim_direction(self.sim)  # <-- compute current vector
+            unit_vec, dist = get_victim_direction(self.sim)
+            victim_vec = (*unit_vec, dist)  # 4-element: dx,dy,dz,distance
 
             self.depths.append(depth_img)
             self.poses.append(pose)
             self.frames.append(self.global_frame_counter)
             self.distances.append(distance)
             self.actions.append(self.last_action_label)
-            self.victim_dirs.append(victim_dir)
+            self.victim_dirs.append(victim_vec)
 
             if len(self.depths) >= self.batch_size:
                 self._flush_buffer()
@@ -100,19 +109,37 @@ class DepthDatasetCollector:
             self._flush_buffer()
         self.shutdown_requested = True
         self.saving_thread.join()
-        print("[DepthCollector] Shutdown complete, all data saved.")
+        if self.verbose:
+            print("[DepthCollector] Shutdown complete, all data saved.")
+
+    def _safe_stack(self, name, arr_list, dtype=None):
+        try:
+            return np.stack(arr_list)
+        except Exception as e:
+            if self.verbose:
+                print(f"[DepthCollector] Warning: could not stack {name}: {e}")
+            # show individual shapes
+            try:
+                shapes = [np.shape(a) for a in arr_list]
+                if self.verbose:
+                    print(f"[DepthCollector] {name} element shapes: {shapes}")
+            except:
+                pass
+            return np.array(arr_list, dtype=dtype if dtype else object)
 
     def _flush_buffer(self):
+        # Stack arrays safely with fallback
         batch = {
-            'depths':      np.stack(self.depths),
-            'poses':       np.stack(self.poses),
+            'depths':      self._safe_stack('depths', self.depths),
+            'poses':       self._safe_stack('poses', self.poses),
             'frames':      np.array(self.frames, dtype=np.int32),
             'distances':   np.array(self.distances, dtype=np.float32),
             'actions':     np.array(self.actions, dtype=np.int32),
-            'victim_dirs': np.array(self.victim_dirs, dtype=np.float32)  # <-- include here
+            'victim_dirs': self._safe_stack('victim_dirs', self.victim_dirs, dtype=np.float32)
         }
         self.save_queue.put(batch)
-        print(f"[DepthCollector] Queued batch with {len(self.depths)} frames for saving.")
+        if self.verbose:
+            print(f"[DepthCollector] Queued batch with {len(self.depths)} frames for saving.")
 
         self.depths.clear()
         self.poses.clear()
@@ -160,3 +187,7 @@ class DepthDatasetCollector:
     def _on_rotate(self, delta):
         if delta > 0:    self.last_action_label = 6  # rotate left
         elif delta < 0:  self.last_action_label = 7  # rotate right
+
+    def _on_config_updated(self, _):
+        # Update verbose flag when configuration changes
+        self.verbose = get_default_config().get('verbose', False)
