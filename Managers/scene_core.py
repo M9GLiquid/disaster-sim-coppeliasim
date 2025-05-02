@@ -171,20 +171,32 @@ def create_scene_queued(sim, config, callback=None, progress_callback=None, even
 
 def get_victim_direction(sim):
     """
-    Returns: unit direction vector and distance from quadcopter to victim.
+    Returns a unit direction vector and distance from quadcopter to victim.
+    
+    Returns:
+        tuple: ((dx, dy, dz), distance) - normalized direction vector and Euclidean distance
     """
-    quad = sim.getObject('/Quadcopter')
-    vic = sim.getObject('/Victim')
+    try:
+        # Get object handles
+        quad = sim.getObject('/Quadcopter')
+        vic = sim.getObject('/Victim')
 
-    qx, qy, qz = sim.getObjectPosition(quad, -1)
-    vx, vy, vz = sim.getObjectPosition(vic, -1)
+        # Get positions
+        qx, qy, qz = sim.getObjectPosition(quad, -1)
+        vx, vy, vz = sim.getObjectPosition(vic, -1)
 
-    dx, dy, dz = vx - qx, vy - qy, vz - qz
-    distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+        # Calculate vector components and distance
+        dx, dy, dz = vx - qx, vy - qy, vz - qz
+        distance = math.sqrt(dx*dx + dy*dy + dz*dz)
 
-    if distance == 0.0:
-        unit_vector = (0.0, 0.0, 0.0)
-    else:
-        unit_vector = (dx / distance, dy / distance, dz / distance)
+        # Calculate normalized direction vector (unit vector)
+        if distance < 0.0001:  # Avoid division by near-zero
+            unit_vector = (0.0, 0.0, 0.0)
+        else:
+            unit_vector = (dx / distance, dy / distance, dz / distance)
 
-    return unit_vector, distance
+        return unit_vector, distance
+        
+    except Exception as e:
+        print(f"[SceneCore] Error calculating victim direction: {e}")
+        return (0.0, 0.0, 0.0), -1.0  # Return zero vector and invalid distance on error

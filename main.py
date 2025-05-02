@@ -42,9 +42,9 @@ def main():
     depth_collector = DepthDatasetCollector(
         sim, cam_rgb,
         base_folder="data/depth_dataset",
-        batch_size=100,
-        save_every_n_frames=10,
-        split_ratio=(0.98, 0.01, 0.01),
+        batch_size=config.get("batch_size", 100),
+        save_every_n_frames=config.get("dataset_capture_frequency", 5),  # Use the configurable frequency
+        split_ratio=(0.8, 0.1, 0.1),  # Standard ML dataset split
         event_manager=event_manager
     )
 
@@ -86,7 +86,8 @@ def main():
                         
                     # Handle vision sensor
                     sim.handleVisionSensor(cam_rgb)
-                    depth_collector.capture()
+                    # Publish simulation frame event for data capture
+                    event_manager.publish('simulation/frame', None)
             safe_step(sim) 
             time.sleep(timestep)
     threading.Thread(target=sim_loop, daemon=True).start()

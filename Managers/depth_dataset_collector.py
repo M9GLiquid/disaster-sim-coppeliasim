@@ -3,10 +3,18 @@ import threading
 import queue
 import numpy as np
 
-from Utils.capture_utils import capture_depth, capture_pose, capture_dummy_distance
+from Utils.capture_utils import capture_depth, capture_pose, capture_distance_to_victim
 from Utils.save_utils import save_batch_npz
 from Managers.scene_core import get_victim_direction
 from Utils.config_utils import get_default_config
+
+# Dataset collection events
+DATASET_CAPTURE_REQUEST = 'dataset/capture/request'    # Request a data capture
+DATASET_CAPTURE_COMPLETE = 'dataset/capture/complete'  # Data point captured successfully
+DATASET_BATCH_SAVED = 'dataset/batch/saved'           # Batch successfully saved
+DATASET_BATCH_ERROR = 'dataset/batch/error'           # Error saving batch
+VICTIM_DETECTED = 'victim/detected'                   # Victim detected in frame
+DATASET_CONFIG_UPDATED = 'dataset/config/updated'     # Dataset configuration updated
 
 class DepthDatasetCollector:
     def __init__(self, sim, sensor_handle, event_manager,
@@ -70,6 +78,9 @@ class DepthDatasetCollector:
         event_manager.subscribe('keyboard/move',   self._on_move)
         event_manager.subscribe('keyboard/rotate', self._on_rotate)
 
+        # subscribe to simulation frame events for data capture
+        event_manager.subscribe('simulation/frame', self._on_simulation_frame)
+
     def _on_scene_created(self, _):
         """
         Activate data collection once the scene is created.
@@ -81,28 +92,44 @@ class DepthDatasetCollector:
             self.active = True
 
     def capture(self):
-        # skip capturing until scene is initialized
-        if not self.active:
-            self.global_frame_counter += 1
-            return
-        if self.global_frame_counter % self.save_every_n_frames == 0:
-            depth_img = capture_depth(self.sim, self.sensor_handle)
-            pose     = capture_pose(self.sim)
-            distance = capture_dummy_distance()
-            unit_vec, dist = get_victim_direction(self.sim)
-            victim_vec = (*unit_vec, dist)  # 4-element: dx,dy,dz,distance
+        """Deprecated: use event 'simulation/frame' instead"""
+        pass
 
-            self.depths.append(depth_img)
-            self.poses.append(pose)
-            self.frames.append(self.global_frame_counter)
-            self.distances.append(distance)
-            self.actions.append(self.last_action_label)
-            self.victim_dirs.append(victim_vec)
-
-            if len(self.depths) >= self.batch_size:
-                self._flush_buffer()
-
+    def _on_simulation_frame(self, _):
+        """
+        Handle simulation frame event: capture data every save_every_n_frames
+        """
+        # increment frame counter
         self.global_frame_counter += 1
+        if not self.active:
+            return
+        if self.global_frame_counter % self.save_every_n_frames != 0:
+            return
+        # perform capture
+        depth_img = capture_depth(self.sim, self.sensor_handle)
+        pose     = capture_pose(self.sim)
+        distance = capture_distance_to_victim(self.sim)
+        unit_vec, dist = get_victim_direction(self.sim)
+        victim_vec = (*unit_vec, dist)
+
+        self.depths.append(depth_img)
+        self.poses.append(pose)
+        self.frames.append(self.global_frame_counter)
+        self.distances.append(distance)
+        self.actions.append(self.last_action_label)
+        self.victim_dirs.append(victim_vec)
+
+        # publish capture complete event
+        self.event_manager.publish(DATASET_CAPTURE_COMPLETE, {
+            'frame': self.global_frame_counter,
+            'distance': distance,
+            'action': self.last_action_label,
+            'victim_vec': victim_vec
+        })
+
+        # flush if batch full
+        if len(self.depths) >= self.batch_size:
+            self._flush_buffer()
 
     def shutdown(self):
         if self.depths:
@@ -158,7 +185,11 @@ class DepthDatasetCollector:
 
     def _save_batch(self, batch):
         folder, counter = self._select_split()
-        save_batch_npz(folder, counter, batch)
+        success = save_batch_npz(folder, counter, batch)
+        if success:
+            self.event_manager.publish(DATASET_BATCH_SAVED, {'folder': folder, 'counter': counter})
+        else:
+            self.event_manager.publish(DATASET_BATCH_ERROR, {'folder': folder, 'counter': counter})
         if folder == self.train_folder:
             self.train_counter += 1
         elif folder == self.val_folder:
@@ -191,3 +222,5 @@ class DepthDatasetCollector:
     def _on_config_updated(self, _):
         # Update verbose flag when configuration changes
         self.verbose = get_default_config().get('verbose', False)
+        # publish dataset config updated
+        self.event_manager.publish(DATASET_CONFIG_UPDATED, {'verbose': self.verbose})

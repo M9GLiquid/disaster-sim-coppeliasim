@@ -1,6 +1,7 @@
 # Utils/capture_utils.py
 
 import numpy as np
+import math
 
 def capture_depth(sim, sensor_handle):
     """
@@ -21,8 +22,26 @@ def capture_pose(sim):
     ori = sim.getObjectOrientation(parent_handle, -1)
     return np.array([pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]], dtype=np.float32)
 
-def capture_dummy_distance():
+def capture_distance_to_victim(sim):
     """
-    Placeholder for distance to goal. Currently returns dummy value.
+    Calculate the actual distance from the drone to the victim.
     """
-    return -1.0  # Replace with real victim distance later
+    try:
+        # Get handles to quadcopter and victim
+        quad_handle = sim.getObject('/Quadcopter')
+        victim_handle = sim.getObject('/Victim')
+        
+        # Get positions
+        quad_pos = sim.getObjectPosition(quad_handle, -1)
+        victim_pos = sim.getObjectPosition(victim_handle, -1)
+        
+        # Calculate Euclidean distance
+        dx = quad_pos[0] - victim_pos[0]
+        dy = quad_pos[1] - victim_pos[1]
+        dz = quad_pos[2] - victim_pos[2]
+        distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        return distance
+    except Exception as e:
+        print(f"[CaptureUtils] Error calculating distance to victim: {e}")
+        return -1.0  # Fallback to -1.0 in case of error

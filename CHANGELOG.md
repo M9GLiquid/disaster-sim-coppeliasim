@@ -9,6 +9,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MINOR version (Y) when adding functionality in a backward compatible manner
 - PATCH version (Z) when making backward compatible bug fixes
 
+## [Unreleased]
+
+### Added
+- Event-driven depth dataset collection via `simulation/frame` events
+- New config `victim_detection_threshold` to fire `victim/detected` alarms
+- Immediate one-off capture when victim detected (bypasses frame skip)
+- Thread-safe event publishes from background threads (save and capture events)
+- Automatic unsubscribe from all dataset events on `shutdown()` to avoid leaks
+
+### Changed
+- Replaced dummy distances with real Euclidean distance calculations
+- Configurable sampling rate via `dataset_capture_frequency`
+- Introduced capture and batch events: `dataset/capture/complete`, `dataset/batch/saved`, `dataset/batch/error`
+
+### Fixed
+- Proper cleanup of event subscriptions on shutdown
+
 ## [V.0.9.0] - 2025-05-02
 
 ### Added

@@ -131,30 +131,56 @@ python main.py
 
 ## Dataset Collection Behavior
 
-- Depth images and drone poses are captured every N simulation frames.
-- Each saved batch contains:
-  - `depths`: Depth images
-  - `poses`: Drone positions and orientations `[x, y, z, roll, pitch, yaw]`
-  - `frames`: Frame numbers
-  - `distances`: Placeholder distances (currently always `-1.0`)
-  - `actions`: Discrete movement/rotation labels
-- Data is saved automatically in compressed `.npz` files.
-- Dataset is split into `train/`, `val/`, and `test/` folders based on the configured ratio.
+- Event-driven capture on each published `simulation/frame` event.
+- Configurable sampling rate via `dataset_capture_frequency` (frames per capture).
+- Real Euclidean distances to victim (replacing dummy values).
+- Immediate one-off capture on `victim/detected` when distance < `victim_detection_threshold`.
+- Published events:
+  - `dataset/capture/complete`: per-frame metadata `{ frame, distance, action, victim_vec }`
+  - `dataset/batch/saved` / `dataset/batch/error`: batch save notifications `{ folder, counter }`
+  - `victim/detected`: anomaly alert `{ frame, distance }`
+- Batching on in-memory buffers of size `batch_size`, saved on background thread.
+- All event publishes from background threads are thread-safe.
+- On shutdown, unsubscribes from dataset events to clean up callbacks.
+
+Data is saved as compressed `.npz` files in `data/depth_dataset/{train,val,test}/batch_XXXXXX.npz` containing:
+  - `depths`: float32 array (N, H, W)
+  - `poses`: float32 array (N, 6)
+  - `frames`: int32 array (N,)
+  - `distances`: float32 array (N,)
+  - `actions`: int32 array (N,)
+  - `victim_dirs`: float32 array (N, 4)  # (ux,uy,uz,distance)
 
 ---
 
 ## Future Improvements
 
-- Advanced obstacle avoidance AI (planned).
-- Dynamic obstacles (moving targets).
-- Expand the disaster scenario with additional elements.
+- Separate AI module for intelligent navigation (will be hosted in a dedicated repo).  
+  *Placeholder: [AI Navigation Repository](https://github.com/your-org/ai-navigation-system)*
+
+- Advanced obstacle avoidance and path planning.
+- Dynamic obstacles such as moving objects or agents.
+- Expanded disaster scenarios with additional elements.
+- Add runtime log system for debugging and analysis.
+- General bug fixes and polish.
 
 ---
 
-## Authors
+## Contribution
 
-- Core Developer: Thomas Lundqvist
-- Simulation based on CoppeliaSim API v4.9
+- **Thomas Lundqvist** – Senior Developer  
+  Main contributor responsible for core development and system architecture.
+
+- **Jakub Espandr** – Developer & Tester  
+  Assisted with development and conducted simulation testing.
+
+- **Hieu Tran** – Documentation & Product Manager  
+  Handled planning, documentation, and team coordination.
+
+---
+
+This project was built through close collaboration, shared responsibility, and open communication among all team members.
+
 
 ---
 

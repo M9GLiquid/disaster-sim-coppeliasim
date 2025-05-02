@@ -118,10 +118,9 @@ class MenuSystem:
         # Scene control buttons
         self.scene_buttons = []
         for text, command in [
-            ("Create Disaster", create_scene_with_progress),
-            ("Restart Disaster", restart_scene_with_progress),
-            ("Clear Disaster", clear_scene),
-            ("Cancel Creation", cancel_scene_creation),
+            ("Create Enviroment", create_scene_with_progress),
+            ("Clear Enviroment", clear_scene),
+            ("Cancel Creating Enviroment", cancel_scene_creation),
         ]:
             btn = ttk.Button(parent, text=text, command=command)
             btn.pack(fill="x", pady=5)
