@@ -8,6 +8,12 @@ from Utils.save_utils import save_batch_npz
 from Managers.scene_core import get_victim_direction
 from Utils.config_utils import get_default_config
 
+from Managers.Connections.sim_connection import SimConnection
+from Core.event_manager import EventManager
+
+EM = EventManager.get_instance()
+SC = SimConnection.get_instance()
+
 # Dataset collection events
 DATASET_CAPTURE_REQUEST = 'dataset/capture/request'    # Request a data capture
 DATASET_CAPTURE_COMPLETE = 'dataset/capture/complete'  # Data point captured successfully
@@ -17,7 +23,7 @@ VICTIM_DETECTED = 'victim/detected'                   # Victim detected in frame
 DATASET_CONFIG_UPDATED = 'dataset/config/updated'     # Dataset configuration updated
 
 class DepthDatasetCollector:
-    def __init__(self, sim, sensor_handle, event_manager,
+    def __init__(self, sensor_handle,
                  base_folder="depth_dataset",
                  batch_size=500,
                  save_every_n_frames=10,
@@ -28,11 +34,9 @@ class DepthDatasetCollector:
         # Verbose logging flag from configuration
         self.verbose = get_default_config().get('verbose', False)
         # Listen for config updates
-        event_manager.subscribe('config/updated', self._on_config_updated)
-        self.sim = sim
+        EM.subscribe('config/updated', self._on_config_updated)
         self.sensor_handle = sensor_handle
         self.base_folder = base_folder
-        self.event_manager = event_manager
         self.batch_size = batch_size
         self.save_every_n_frames = save_every_n_frames
         self.train_ratio, self.val_ratio, self.test_ratio = split_ratio
@@ -72,14 +76,14 @@ class DepthDatasetCollector:
         # data capture activation flag
         self.active = False
         # subscribe to scene creation event to start data capture
-        self.event_manager.subscribe('scene/created', self._on_scene_created)
+        EM.subscribe('scene/created', self._on_scene_created)
 
         # Event subscriptions
-        event_manager.subscribe('keyboard/move',   self._on_move)
-        event_manager.subscribe('keyboard/rotate', self._on_rotate)
+        EM.subscribe('keyboard/move',   self._on_move)
+        EM.subscribe('keyboard/rotate', self._on_rotate)
 
         # subscribe to simulation frame events for data capture
-        event_manager.subscribe('simulation/frame', self._on_simulation_frame)
+        EM.subscribe('simulation/frame', self._on_simulation_frame)
 
     def _on_scene_created(self, _):
         """
@@ -106,11 +110,23 @@ class DepthDatasetCollector:
         if self.global_frame_counter % self.save_every_n_frames != 0:
             return
         # perform capture
-        depth_img = capture_depth(self.sim, self.sensor_handle)
-        pose     = capture_pose(self.sim)
-        distance = capture_distance_to_victim(self.sim)
-        unit_vec, dist = get_victim_direction(self.sim)
-        victim_vec = (*unit_vec, dist)
+        depth_img = capture_depth(self.sensor_handle)
+        pose     = capture_pose()
+        distance = capture_distance_to_victim()
+        
+        # Add error handling for victim direction
+        try:
+            unit_vec, dist = get_victim_direction()
+            # Check if any values are None before unpacking
+            if unit_vec is None or dist is None:
+                # Default values if victim direction isn't available
+                victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance
+            else:
+                victim_vec = (*unit_vec, dist)
+        except Exception as e:
+            if self.verbose:
+                print(f"[DepthCollector] Error getting victim direction: {e}")
+            victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance
 
         self.depths.append(depth_img)
         self.poses.append(pose)
@@ -120,7 +136,7 @@ class DepthDatasetCollector:
         self.victim_dirs.append(victim_vec)
 
         # publish capture complete event
-        self.event_manager.publish(DATASET_CAPTURE_COMPLETE, {
+        EM.publish(DATASET_CAPTURE_COMPLETE, {
             'frame': self.global_frame_counter,
             'distance': distance,
             'action': self.last_action_label,
@@ -173,7 +189,7 @@ class DepthDatasetCollector:
         self.frames.clear()
         self.distances.clear()
         self.actions.clear()
-        self.victim_dirs.clear()    # <-- clear buffer
+        self.victim_dirs.clear()
 
     def _background_saver(self):
         while not self.shutdown_requested or not self.save_queue.empty():
@@ -187,9 +203,9 @@ class DepthDatasetCollector:
         folder, counter = self._select_split()
         success = save_batch_npz(folder, counter, batch)
         if success:
-            self.event_manager.publish(DATASET_BATCH_SAVED, {'folder': folder, 'counter': counter})
+            EM.publish(DATASET_BATCH_SAVED, {'folder': folder, 'counter': counter})
         else:
-            self.event_manager.publish(DATASET_BATCH_ERROR, {'folder': folder, 'counter': counter})
+            EM.publish(DATASET_BATCH_ERROR, {'folder': folder, 'counter': counter})
         if folder == self.train_folder:
             self.train_counter += 1
         elif folder == self.val_folder:
@@ -223,4 +239,4 @@ class DepthDatasetCollector:
         # Update verbose flag when configuration changes
         self.verbose = get_default_config().get('verbose', False)
         # publish dataset config updated
-        self.event_manager.publish(DATASET_CONFIG_UPDATED, {'verbose': self.verbose})
+        EM.publish(DATASET_CONFIG_UPDATED, {'verbose': self.verbose})

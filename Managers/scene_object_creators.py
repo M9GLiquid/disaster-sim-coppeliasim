@@ -1,68 +1,45 @@
 import random
-from Utils.terrain_elements import create_floor, create_tree, create_rock, create_victim, create_bush
+from Utils.terrain_elements import create_floor, create_victim
+from Utils.scene_helpers import normalize_position, generate_positions, create_terrain_object
 
+def create_scene_floor(config, random_pos, victim_pos):
+    return [create_floor(config["area_size"])]
 
-def create_scene_floor(sim, config, random_pos, victim_pos):
-    return [create_floor(sim, config["area_size"])]
-
-
-def create_scene_rocks(sim, config, random_pos, victim_pos):
-    rocks = []
+def create_scene_rocks(config, random_pos, victim_pos):
     num_rocks = config.get("num_rocks", 0)
-    positions = random_pos(batch_size=num_rocks) if hasattr(random_pos, '__call__') and random_pos.__code__.co_argcount > 0 else [random_pos() for _ in range(num_rocks)]
-    for pos in positions:
-        if len(pos) > 2:
-            pos = pos[:2]
-        rocks.append(create_rock(sim, pos, random.uniform(0.3, 0.7)))
-    return rocks
+    positions = generate_positions(random_pos, num_rocks)
+    return [create_terrain_object('rock', pos) for pos in positions]
 
-
-def create_scene_standing_trees(sim, config, random_pos, victim_pos):
+def create_scene_standing_trees(config, random_pos, victim_pos):
     num_standing = int(config.get("num_trees", 0) * config.get("fraction_standing", 0))
+    positions = generate_positions(random_pos, num_standing)
+    
     trees = []
-    positions = random_pos(batch_size=num_standing) if hasattr(random_pos, '__call__') and random_pos.__code__.co_argcount > 0 else [random_pos() for _ in range(num_standing)]
     for pos in positions:
         if len(pos) > 2:
-            x, y, z = pos
-            trees.append(create_tree(sim, (x, y), fallen=False, trunk_len=random.uniform(0.2, 0.5)))
+            kwargs = {'trunk_len': random.uniform(0.2, 0.5)}
+            trees.append(create_terrain_object('standing_tree', pos, **kwargs))
         else:
-            trees.append(create_tree(sim, pos, fallen=False))
+            trees.append(create_terrain_object('standing_tree', pos))
     return trees
 
-
-def create_scene_fallen_trees(sim, config, random_pos, victim_pos):
+def create_scene_fallen_trees(config, random_pos, victim_pos):
     num_fallen = config.get("num_trees", 0) - int(config.get("num_trees", 0) * config.get("fraction_standing", 0))
-    trees = []
-    positions = random_pos(batch_size=num_fallen) if hasattr(random_pos, '__call__') and random_pos.__code__.co_argcount > 0 else [random_pos() for _ in range(num_fallen)]
-    for pos in positions:
-        if len(pos) > 2:
-            pos = pos[:2]
-        trees.append(create_tree(sim, pos, fallen=True, trunk_len=random.uniform(0.5, 1.0)))
-    return trees
+    positions = generate_positions(random_pos, num_fallen)
+    
+    return [create_terrain_object('fallen_tree', pos, trunk_len=random.uniform(0.5, 1.0)) for pos in positions]
 
-
-def create_scene_bushes(sim, config, random_pos, victim_pos):
-    bushes = []
+def create_scene_bushes(config, random_pos, victim_pos):
     num_bushes = config.get("num_bushes", 0)
-    positions = random_pos(batch_size=num_bushes) if hasattr(random_pos, '__call__') and random_pos.__code__.co_argcount > 0 else [random_pos() for _ in range(num_bushes)]
-    for pos in positions:
-        if len(pos) > 2:
-            pos = pos[:2]
-        bushes.append(create_bush(sim, pos, (0.3, 0.8)))
-    return bushes
+    positions = generate_positions(random_pos, num_bushes)
+    
+    return [create_terrain_object('bush', pos, size_range=(0.3, 0.8)) for pos in positions]
 
-
-def create_scene_ground_foliage(sim, config, random_pos, victim_pos):
-    from Utils.terrain_elements import create_ground_foliage
-    foliage = []
+def create_scene_ground_foliage(config, random_pos, victim_pos):
     num_foliage = config.get("num_foliage", 0)
-    positions = random_pos(batch_size=num_foliage) if hasattr(random_pos, '__call__') and random_pos.__code__.co_argcount > 0 else [random_pos() for _ in range(num_foliage)]
-    for pos in positions:
-        if len(pos) > 2:
-            pos = pos[:2]
-        foliage.append(create_ground_foliage(sim, pos))
-    return foliage
+    positions = generate_positions(random_pos, num_foliage)
+    
+    return [create_terrain_object('ground_foliage', pos) for pos in positions]
 
-
-def create_scene_victim(sim, config, random_pos, victim_pos):
-    return [create_victim(sim, victim_pos)]
+def create_scene_victim(config, random_pos, victim_pos):
+    return [create_victim(victim_pos)]

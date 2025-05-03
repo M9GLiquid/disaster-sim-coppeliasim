@@ -2,22 +2,25 @@
 
 import tkinter as tk
 from tkinter import ttk
-from Core.event_manager import EventManager
 from Utils.scene_utils import clear_disaster_area, restart_disaster_area
-from Managers.scene_core import create_scene
-from Managers.scene_progressive import (
-    create_scene_progressive, 
+from Managers.scene_creator_base import (
+    SCENE_CREATION_STARTED,
     SCENE_CREATION_PROGRESS, 
     SCENE_CREATION_COMPLETED, 
     SCENE_CREATION_CANCELED
 )
+from Managers.scene_progressive import create_scene_progressive
 from Utils.config_utils import FIELDS
+from Managers.Connections.sim_connection import SimConnection
+from Core.event_manager import EventManager
+
+EM = EventManager.get_instance()
+SC = SimConnection.get_instance()
 
 class MenuSystem:
-    def __init__(self, event_manager, sim, config: dict, sim_command_queue):
-        self.event_manager = event_manager
+    def __init__(self, config: dict, sim_command_queue):
         self.sim_queue = sim_command_queue
-        self.sim = sim
+        self.sim = SC.sim
         self.config = config
         self.scene_creator = None
         self.progress_var = None  # For progress bar
@@ -28,6 +31,28 @@ class MenuSystem:
         self.root.geometry("320x400")
         self.root.configure(bg="#e5e5e5")
         self._build_ui()
+        
+        # Register for scene-related events
+        self._register_event_handlers()
+
+    def _register_event_handlers(self):
+        """Set up event handlers for scene-related events"""
+        # Scene creation events
+        EM.subscribe(SCENE_CREATION_PROGRESS, self._on_scene_progress)
+        EM.subscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
+        EM.subscribe(SCENE_CREATION_CANCELED, self._on_scene_canceled)
+        
+        # Handle scene creation requests from menus
+        EM.subscribe('scene/creation/request', self._on_scene_creation_request)
+        EM.subscribe('simulation/frame', self._on_simulation_frame)
+        EM.subscribe('simulation/shutdown', self.cleanup)
+
+    def _on_simulation_frame(self, _):
+        """Wrapper method to handle simulation frame events and update the UI safely"""
+        try:
+            self.root.update()
+        except Exception as e:
+            print(f"Error updating UI: {e}")
 
     def _build_ui(self):
         # Themed notebook for Scene and Config tabs
@@ -60,13 +85,6 @@ class MenuSystem:
         self.status_label = ttk.Label(parent, text="")
         self.status_label.pack(pady=2)
         
-        # Enqueue helper - for backward compatibility
-        def enqueue(fn, args=None):
-            if args is None:
-                args = []
-            self.sim_queue.put((fn, args, {}))
-            self.event_manager.publish("scene/created", None)
-        
         # Create scene with progressive approach
         def create_scene_with_progress():
             # Disable all buttons during scene creation
@@ -78,49 +96,36 @@ class MenuSystem:
             self.progress_var.set(0.0)
             self.status_label.configure(text="Creating scene...")
             
-            # Subscribe to scene creation events
-            self.event_manager.subscribe(SCENE_CREATION_PROGRESS, self._on_scene_progress)
-            self.event_manager.subscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
-            self.event_manager.subscribe(SCENE_CREATION_CANCELED, self._on_scene_canceled)
-            
             # Start progressive scene creation
             self.scene_creator = create_scene_progressive(
-                self.sim,
-                self.config,
-                self.event_manager
+                self.config
             )
         
-        # Restart scene with progressive approach
-        def restart_scene_with_progress():
-            # For now, use the original restart function
+        # Restart scene using event-based approach
+        def restart_scene():
             self.status_label.configure(text="Restarting scene...")
-            self.sim_queue.put((restart_disaster_area, [self.config, self.event_manager], {}))
-            self.root.after(200, lambda: self.status_label.configure(text="Scene restarted"))
-            # No need for manual event publishing, handled within restart_disaster_area now
+            # Use an event to trigger the restart instead of a direct function call
+            EM.publish('scene/restart', self.config)
             
-        # Clear scene - no threading needed as it's fast
+        # Clear scene using event-based approach
         def clear_scene():
             self.status_label.configure(text="Clearing scene...")
-            self.sim_queue.put((clear_disaster_area, [], {}))
-            self.root.after(200, lambda: self.status_label.configure(text="Scene cleared"))
-            self.event_manager.publish("scene/created", None)
-        
+            # Use an event to trigger the clearing instead of a direct function call
+            EM.publish('scene/clear', None)
+            
         # Cancel ongoing scene creation if any
         def cancel_scene_creation():
             if self.scene_creator:
                 self.scene_creator.cancel()
-                self.status_label.configure(text="Scene creation cancelled")
-                for btn in self.scene_buttons:
-                    btn.configure(state="normal")
-                self.root.after(500, lambda: self.progress_bar.pack_forget())
-                self.scene_creator = None
+                # The scene_creator will fire the SCENE_CREATION_CANCELED event
+                # which we're already listening for, so no need to manually update UI
         
         # Scene control buttons
         self.scene_buttons = []
         for text, command in [
-            ("Create Enviroment", create_scene_with_progress),
-            ("Clear Enviroment", clear_scene),
-            ("Cancel Creating Enviroment", cancel_scene_creation),
+            ("Create Environment", create_scene_with_progress),
+            ("Clear Environment", clear_scene),
+            ("Cancel Creating Environment", cancel_scene_creation),
         ]:
             btn = ttk.Button(parent, text=text, command=command)
             btn.pack(fill="x", pady=5)
@@ -155,14 +160,14 @@ class MenuSystem:
                 typ = field['type']
                 try:
                     self.config[key] = typ(value)
-                    self.event_manager.publish('config/updated', None)
+                    EM.publish('config/updated', None)
                 except Exception:
                     pass
                 break
 
     def _quit(self):
         # Signal application to quit and close GUI
-        self.event_manager.publish('app/quit', None)
+        EM.publish('simulation/shutdown', None)
         self.root.destroy()
         
     def _on_scene_progress(self, progress):
@@ -178,10 +183,6 @@ class MenuSystem:
             btn.configure(state="normal")
         self.root.after(1000, lambda: self.progress_bar.pack_forget())
         self.scene_creator = None
-        # Unsubscribe from events
-        self.event_manager.unsubscribe(SCENE_CREATION_PROGRESS, self._on_scene_progress)
-        self.event_manager.unsubscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
-        self.event_manager.unsubscribe(SCENE_CREATION_CANCELED, self._on_scene_canceled)
         
     def _on_scene_canceled(self, _):
         """Handle scene creation cancellation."""
@@ -191,10 +192,38 @@ class MenuSystem:
             btn.configure(state="normal")
         self.root.after(500, lambda: self.progress_bar.pack_forget())
         self.scene_creator = None
-        # Unsubscribe from events
-        self.event_manager.unsubscribe(SCENE_CREATION_PROGRESS, self._on_scene_progress)
-        self.event_manager.unsubscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
-        self.event_manager.unsubscribe(SCENE_CREATION_CANCELED, self._on_scene_canceled)
+
+    def _on_scene_creation_request(self, config=None):
+        """
+        Handle a scene creation request from the menu system.
+        This gets triggered when the user selects 'Create disaster area' from the main menu.
+        """
+        # Use provided config or fall back to the current config
+        if config is None:
+            config = self.config
+            
+        # Disable buttons except for the Cancel button during scene creation
+        for i, btn in enumerate(self.scene_buttons):
+            if "Cancel" not in btn["text"]:  # Keep the Cancel button enabled
+                btn.configure(state="disabled")
+            else:
+                btn.configure(state="normal")  # Ensure the Cancel button is enabled
+        
+        # Show progress bar
+        self.progress_bar.pack(fill="x", pady=5)
+        self.progress_var.set(0.0)
+        self.status_label.configure(text="Creating scene...")
+        
+        # Start progressive scene creation
+        self.scene_creator = create_scene_progressive(
+            self.config
+        )
 
     def run(self):
         self.root.mainloop()
+        
+    def cleanup(self):
+        """Unsubscribe from events when the menu system is closed"""
+        EM.unsubscribe(SCENE_CREATION_PROGRESS, self._on_scene_progress)
+        EM.unsubscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
+        EM.unsubscribe(SCENE_CREATION_CANCELED, self._on_scene_canceled)

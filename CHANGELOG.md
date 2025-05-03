@@ -9,7 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - MINOR version (Y) when adding functionality in a backward compatible manner
 - PATCH version (Z) when making backward compatible bug fixes
 
-## [Unreleased]
+## [V.0.10.0] - 2025-05-03
 
 ### Added
 - Event-driven depth dataset collection via `simulation/frame` events
@@ -17,14 +17,40 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Immediate one-off capture when victim detected (bypasses frame skip)
 - Thread-safe event publishes from background threads (save and capture events)
 - Automatic unsubscribe from all dataset events on `shutdown()` to avoid leaks
+- Created TODO.md file to track planned features and improvements
+- Implemented singleton pattern for core managers (EventManager, KeyboardManager, SimConnection)
+- Added SceneCreatorBase abstract class to standardize scene creation approaches
+- Created new scene_helpers.py module with helper functions for scene creation
+- Added setup_scene_event_handlers() for event-based scene management
+- Added create_terrain_object() helper function to standardize terrain object creation
 
 ### Changed
 - Replaced dummy distances with real Euclidean distance calculations
 - Configurable sampling rate via `dataset_capture_frequency`
 - Introduced capture and batch events: `dataset/capture/complete`, `dataset/batch/saved`, `dataset/batch/error`
+- Refactored Controls subsystem to use singleton pattern
+- Converted all direct sim references to use SimConnection singleton
+- Created scene_helpers.py with utility functions to reduce code duplication
+- Moved from threaded simulation architecture to single-thread event-driven approach
+- Reimplemented core scene creation functionality using the new SceneCreatorBase structure
+- Enhanced victim direction vector error handling in depth_dataset_collector.py
+- Refactored all menu classes to use the EventManager singleton
+- Improved main.py to explicitly calculate delta_time between simulation frames
+- Simplified object creation workflow with normalized property setting
 
 ### Fixed
 - Proper cleanup of event subscriptions on shutdown
+- Fixed Cancel Creating Environment button being disabled during scene creation
+- Improved error handling in victim direction vectors in depth_dataset_collector.py
+- Consolidated terrain element creation in create_terrain_object helper function
+- Fixed simulation termination and shutdown sequence
+- Fixed scene creation cancellation issues
+
+### Removed
+- Eliminated physics_utils.py in favor of direct property setting via SimConnection
+- Removed sim_utils.py as it's no longer needed with the new architecture
+- Removed global creator reference in scene_progressive.py in favor of module attribute
+- Eliminated the need to pass sim and event_manager instances throughout the codebase
 
 ## [V.0.9.0] - 2025-05-02
 

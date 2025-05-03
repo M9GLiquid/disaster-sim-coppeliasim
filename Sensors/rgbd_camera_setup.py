@@ -1,22 +1,20 @@
 import math
-from Utils.physics_utils import set_collision_properties
 
-def setup_rgbd_camera(sim, config):
-    """
-    Creates and attaches two Vision Sensors (RGB + Depth) to the drone,
-    and links them to floating views.
-    Returns both camera handles and floating view handles.
-    """
+from Managers.Connections.sim_connection import SimConnection
+
+SC = SimConnection.get_instance()
+
+def setup_rgbd_camera(config):
     print("[Camera] Creating combined RGB/depth sensors...")
 
-    parent_handle = sim.getObject('/Quadcopter')
-    target_handle = sim.getObject('/target')
+    parent_handle = SC.sim.getObject('/Quadcopter')
+    target_handle = SC.sim.getObject('/target')
 
-    # Disable collision using our centralized function
-    set_collision_properties(sim, target_handle, enable_collision=False)
+    SC.sim.setBoolProperty(target_handle, "collidable", True)
+    SC.sim.setBoolProperty(target_handle, "respondable", False)
 
     # (Optional) Also hide from depth buffer:
-    sim.setBoolProperty(target_handle, "depthInvisible", True)
+    SC.sim.setBoolProperty(target_handle, "depthInvisible", True)
 
     # Vision Sensor parameters
     options = 1 | 2  # bit 0 = explicitHandling, bit 1 = perspective projection
@@ -31,23 +29,23 @@ def setup_rgbd_camera(sim, config):
     ]
 
     # ─── Create Main RGB Sensor ───
-    cam_rgb = sim.createVisionSensor(options, intParams, floatParams)
-    sim.setObjectAlias(cam_rgb, "DroneSensorRGB")
-    sim.setObjectParent(cam_rgb, parent_handle, False)
-    sim.setObjectPosition(cam_rgb, parent_handle, [-0.1, 0.0, 0.0])
-    sim.setObjectOrientation(cam_rgb, parent_handle, [
+    cam_rgb = SC.sim.createVisionSensor(options, intParams, floatParams)
+    SC.sim.setObjectAlias(cam_rgb, "DroneSensorRGB")
+    SC.sim.setObjectParent(cam_rgb, parent_handle, False)
+    SC.sim.setObjectPosition(cam_rgb, parent_handle, [-0.1, 0.0, 0.0])
+    SC.sim.setObjectOrientation(cam_rgb, parent_handle, [
         math.radians(0),
         math.radians(-90),
         math.radians(-90)
     ])
 
     # ─── Create Floating Views ───
-    floating_view_rgb = sim.floatingViewAdd(0.75, 0.2, 1.0, 1.0, 0)
-    sim.adjustView(floating_view_rgb, cam_rgb, 0)
+    floating_view_rgb = SC.sim.floatingViewAdd(0.75, 0.2, 1.0, 1.0, 0)
+    SC.sim.adjustView(floating_view_rgb, cam_rgb, 0)
 
     # ─── Hide the target if needed ───
     if not config.get('verbose', False):
-        layer = sim.getProperty(target_handle, "layer")
+        layer = SC.sim.getProperty(target_handle, "layer")
         print(f"[RGBCameraSetup] Hiding target (layer {layer}).")
     else:
         print("[RGBCameraSetup] Target remains visible.")

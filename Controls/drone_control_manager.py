@@ -1,18 +1,22 @@
 # Controls/drone_control_manager.py
 
 from Controls.drone_movement_transformer import DroneMovementTransformer
+from Core.event_manager import EventManager
+
+EM = EventManager.get_instance()
 
 class DroneControlManager:
-    def __init__(self, event_manager, sim):
+    def __init__(self):
         self._forward = 0.0
         self._sideward = 0.0
         self._upward = 0.0
         self._yaw_rate = 0.0
 
-        self.camera_movement_controller = DroneMovementTransformer(sim)
+        self.camera_movement_controller = DroneMovementTransformer()
 
-        event_manager.subscribe('keyboard/move', self._on_move)
-        event_manager.subscribe('keyboard/rotate', self._on_rotate)
+        EM.subscribe('keyboard/move', self._on_move)
+        EM.subscribe('keyboard/rotate', self._on_rotate)
+        EM.subscribe('simulation/frame', self._update)
 
     def _on_move(self, delta):
         dx, dy, dz = delta
@@ -23,7 +27,7 @@ class DroneControlManager:
     def _on_rotate(self, delta):
         self._yaw_rate += delta
 
-    def update(self, dt):
+    def _update(self, dt):
         self.camera_movement_controller.update(
             self._forward, 
             self._sideward, 

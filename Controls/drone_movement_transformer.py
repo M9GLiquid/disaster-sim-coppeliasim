@@ -2,17 +2,19 @@
 
 import math
 from Controls.target_mover import TargetMover
+from Managers.Connections.sim_connection import SimConnection
+
+SC = SimConnection.get_instance()
 
 class DroneMovementTransformer:
-    def __init__(self, sim):
-        self.sim = sim
-        target_handle = sim.getObject('/target')
-        self.drone_base = sim.getObject('/Quadcopter/base')
+    def __init__(self):
+        target_handle = SC.sim.getObject('/target')
+        self.drone_base = SC.sim.getObject('/Quadcopter/base')
 
-        self.target_mover = TargetMover(sim)
+        self.target_mover = TargetMover()
 
     def update(self, forward, sideward, upward, yaw_rate, dt):
-        yaw = self.sim.getObjectOrientation(self.drone_base, -1)[2]
+        yaw = SC.sim.getObjectOrientation(self.drone_base, -1)[2]
 
         dx = -forward * math.cos(yaw) - sideward * math.sin(yaw)
         dy = -forward * math.sin(yaw) + sideward * math.cos(yaw)

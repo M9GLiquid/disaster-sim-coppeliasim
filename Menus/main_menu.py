@@ -2,18 +2,18 @@
 
 from Interfaces.menu_interface import MenuInterface
 from Utils.scene_utils import clear_disaster_area, restart_disaster_area
-from Managers.scene_core import create_scene_queued
-import sys
+from Managers.scene_progressive import create_scene_progressive
+from Core.event_manager import EventManager
+
+EM = EventManager.get_instance()
 
 class MainMenu(MenuInterface):
-    def __init__(self, event_manager, sim, config, sim_queue):
-        self.event_manager = event_manager
-        self.sim = sim
+    def __init__(self, config, sim_queue):
         self.config = config
         self.sim_queue = sim_queue
 
         # Register self to listen to events
-        self.event_manager.subscribe('menu/selected', self._on_menu_selected)
+        EM.subscribe('menu/selected', self._on_menu_selected)
 
         self.entries = [
             ('1', 'Create disaster area', self._handle_create),
@@ -36,7 +36,8 @@ class MainMenu(MenuInterface):
         return None
 
     def _handle_create(self):
-        self.sim_queue.put((create_scene_queued, [self.config], {}))
+        # Use event-based progressive scene creation instead of queued function
+        EM.publish('scene/creation/request', self.config)
         return None
 
     def _handle_restart(self):
@@ -54,7 +55,7 @@ class MainMenu(MenuInterface):
     def _handle_quit(self):
         print("[Main Menu] Quit requested.")
         # signal application to quit via event
-        self.event_manager.publish('app/quit', None)
+        EM.publish('simulation/shutdown', None)
         return None
 
     def _on_menu_selected(self, cmd: str):
@@ -65,6 +66,6 @@ class MainMenu(MenuInterface):
             if cmd == key:
                 result = handler()
                 if isinstance(result, str):
-                    self.event_manager.publish("menu/change", result)
+                    EM.publish("menu/change", result)
                 return
         print("[Main Menu] Unknown command via event.")

@@ -23,4 +23,4 @@ Docs/
 .gitignore
 
 # Ignore Agent specific files
-copilot-agent-instructions.md
+instructions.md

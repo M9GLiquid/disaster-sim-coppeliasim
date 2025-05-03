@@ -2,38 +2,41 @@
 
 import numpy as np
 import math
+from Managers.Connections.sim_connection import SimConnection
 
-def capture_depth(sim, sensor_handle):
+SC = SimConnection.get_instance()
+
+def capture_depth(sensor_handle):
     """
     Capture and return depth image from a vision sensor.
     """
-    sim.handleVisionSensor(sensor_handle)
-    raw_depth, (width, height) = sim.getVisionSensorDepth(sensor_handle)
-    depth_buffer = sim.unpackFloatTable(raw_depth)
+    SC.sim.handleVisionSensor(sensor_handle)
+    raw_depth, (width, height) = SC.sim.getVisionSensorDepth(sensor_handle)
+    depth_buffer = SC.sim.unpackFloatTable(raw_depth)
     depth_img = np.array(depth_buffer, dtype=np.float32).reshape((height, width))
     return depth_img
 
-def capture_pose(sim):
+def capture_pose():
     """
     Capture and return drone pose (position + orientation).
     """
-    parent_handle = sim.getObject('/Quadcopter')
-    pos = sim.getObjectPosition(parent_handle, -1)
-    ori = sim.getObjectOrientation(parent_handle, -1)
+    parent_handle = SC.sim.getObject('/Quadcopter')
+    pos = SC.sim.getObjectPosition(parent_handle, -1)
+    ori = SC.sim.getObjectOrientation(parent_handle, -1)
     return np.array([pos[0], pos[1], pos[2], ori[0], ori[1], ori[2]], dtype=np.float32)
 
-def capture_distance_to_victim(sim):
+def capture_distance_to_victim():
     """
     Calculate the actual distance from the drone to the victim.
     """
     try:
         # Get handles to quadcopter and victim
-        quad_handle = sim.getObject('/Quadcopter')
-        victim_handle = sim.getObject('/Victim')
+        quad_handle = SC.sim.getObject('/Quadcopter')
+        victim_handle = SC.sim.getObject('/Victim')
         
         # Get positions
-        quad_pos = sim.getObjectPosition(quad_handle, -1)
-        victim_pos = sim.getObjectPosition(victim_handle, -1)
+        quad_pos = SC.sim.getObjectPosition(quad_handle, -1)
+        victim_pos = SC.sim.getObjectPosition(victim_handle, -1)
         
         # Calculate Euclidean distance
         dx = quad_pos[0] - victim_pos[0]

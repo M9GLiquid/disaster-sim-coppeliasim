@@ -14,7 +14,7 @@ The system supports manual control, dataset collection for AI training, and dyna
 - 📷 **RGB-D Camera setup** (floating view for live RGB images)
 - 🌳 **Procedural disaster area generation** (rocks, standing/fallen trees)
 - 🛠️ **Configuration menu** to adjust scene parameters at runtime
-- 🧠 **Depth dataset collection** Depth images for machine learning
+- 🧠 **Event-driven depth dataset collection** Depth images for machine learning, triggered by simulation events
 - 🎮 **Interactive control menus** for creating, clearing, restarting scenes
 
 ---
@@ -26,6 +26,8 @@ The system supports manual control, dataset collection for AI training, and dyna
 | `.gitignore`                            | Specifies files and directories for Git to ignore                                               |
 | `README.md`                             | Project overview, setup instructions, and usage guide                                           |
 | `main.py`                               | Entry point: initializes sim, menus, controls, and runs the main loop                           |
+| `CHANGELOG.md`                          | Tracks all notable changes to the project                                                      |
+| `TODO.md`                               | Tracks planned features and improvements                                                        |
 
 **Controls/**
 
@@ -46,14 +48,16 @@ The system supports manual control, dataset collection for AI training, and dyna
 
 | Folder/File                      | Purpose                                                                                                   |
 |----------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `depth_dataset_collector.py`     | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files            |
 | `keyboard_manager.py`            | Low-level, cross-platform raw key capture thread that publishes `keyboard/key_pressed`                    |
-| `typing_mode_manager.py`         | Gathers typed characters in "chat" mode, emits `typing/command_ready` or `typing/exit`                   |
-| `menu_interface.py`              | Abstract base class defining `on_open`, `on_command`, and `on_exit` hooks for menus                       |
 | `menu_manager.py`                | Registry and dispatcher for named menus (`main`, `config`, etc.)                                         |
 | `menu_system.py`                 | Routes ENTER/ESC to open/close menus, dispatches commands to the active menu                              |
 | `scene_core.py`                  | Core functionality for scene generation with floor, trees, rocks                                         |
-| `scene_progressive.py`           | Handles progressive procedural scene generation with event-driven updates                               |
-| `depth_dataset_collector.py`     | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files            |
+| `scene_creator_base.py`          | Abstract base class to standardize scene creation approaches                                             |
+| `scene_object_creators.py`       | Helper functions for creating scene objects                                                              |
+| `scene_pos_sampler.py`           | Samples positions for placing objects in the scene                                                       |
+| `scene_progressive.py`           | Handles progressive procedural scene generation with event-driven updates                                |
+| `typing_mode_manager.py`         | Gathers typed characters in "chat" mode, emits `typing/command_ready` or `typing/exit`                   |
 
 **Managers/Connections/**
 
@@ -68,23 +72,42 @@ The system supports manual control, dataset collection for AI training, and dyna
 | `main_menu.py`        | Shows “Create”, “Restart”, “Clear”, “Config”, and “Quit” options; publishes `menu/selected`       |
 | `config_menu.py`      | Lists editable config fields (key + description), lets you toggle/update values                   |
 
-**Sensors/**
+**Sensors**
 
 | Folder/File                  | Purpose                                                          |
 |------------------------------|------------------------------------------------------------------|
 | `rgbd_camera_setup.py`       | Attaches an RGB & depth vision sensor to the drone, sets up floating views |
 
-**Utils/**
+**Utils**
 
 | Folder/File                   | Purpose                                                                 |
 |-------------------------------|-------------------------------------------------------------------------|
+| `capture_utils.py`            | Grabs depth images and drone pose from the sim                          |
 | `config_utils.py`             | Defines `FIELDS` schema and `get_default_config()` with adjustable parameters |
+| `lock_utils.py`               | Provides thread-safe locking mechanisms                                 |
+| `save_utils.py`               | Saves batches of depth/pose/actions/victim_dirs in compressed `.npz` files |
+| `scene_helpers.py`            | Utility functions for scene creation and event handling                |
 | `scene_utils.py`              | Starts/stops simulation if needed, clears `DisasterGroup`, calls `create_scene` |
 | `terrain_elements.py`         | Creates floor, trees (fallen/standing), and rocks primitives            |
-| `capture_utils.py`            | Grabs depth images and drone pose from the sim                          |
-| `save_utils.py`               | Saves batches of depth/pose/actions/victim_dirs in compressed `.npz` files |
 
+**Docs/**
 
+| Folder/File                  | Purpose                                                                 |
+|------------------------------|-------------------------------------------------------------------------|
+| `Docs/en/`                   | Contains API documentation, guides, and references                     |
+| `Docs/index/`                | Index files for documentation                                          |
+| `Docs/js/`                   | JavaScript files for documentation                                      |
+| `Docs/templates/`            | Templates for generating documentation                                 |
+| `Docs/wb_img/`               | Images used in documentation                                           |
+
+**Data**
+
+| Folder/File                  | Purpose                                                                 |
+|------------------------------|-------------------------------------------------------------------------|
+| `data/depth_dataset/`        | Contains training, validation, and test datasets                       |
+| `data/depth_dataset/train/`  | Training dataset                                                       |
+| `data/depth_dataset/val/`    | Validation dataset                                                     |
+| `data/depth_dataset/test/`   | Test dataset                                                           |
 
 ---
 
@@ -180,7 +203,6 @@ Data is saved as compressed `.npz` files in `data/depth_dataset/{train,val,test}
 ---
 
 This project was built through close collaboration, shared responsibility, and open communication among all team members.
-
 
 ---
 

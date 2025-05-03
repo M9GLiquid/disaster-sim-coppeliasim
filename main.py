@@ -3,100 +3,95 @@
 import time
 import queue
 from Managers.depth_dataset_collector    import DepthDatasetCollector
-from Utils.scene_utils                   import clear_disaster_area, restart_disaster_area
+from Utils.scene_utils                   import setup_scene_event_handlers
 from Utils.config_utils                  import get_default_config
 from Sensors.rgbd_camera_setup           import setup_rgbd_camera
 from Controls.drone_keyboard_mapper      import register_drone_keyboard_mapper
 from Core.event_manager                  import EventManager
 from Managers.keyboard_manager           import KeyboardManager
 from Managers.menu_system                import MenuSystem
-from Managers.Connections.sim_connection import connect_to_simulation, shutdown_simulation
+from Managers.Connections.sim_connection import SimConnection
 from Controls.drone_control_manager      import DroneControlManager
 from Utils.lock_utils                    import sim_lock
-from Utils.sim_utils                     import safe_step
-from Managers.scene_progressive          import update_progressive_scene_creation, set_current_creator
-from Utils.physics_utils                 import configure_bullet_engine
+from Managers.scene_progressive          import update_progressive_scene_creation
+
+
+EM = EventManager.get_instance()
+KeyboardManager.get_instance()
+SC = SimConnection.get_instance()
 
 def main():
-    event_manager = EventManager()
-    sim = connect_to_simulation()
+    # Get singleton instances
+    SC.connect()
+    sim = SC.sim
     print("[Main] Simulation connected.")
 
-    # monitor quit event
-    running = {'flag': True}
+    # Monitor quit event
+    running = True
     def _on_app_quit(_):
-        print("[Main] app/quit received, stopping simulation thread.")
-        running['flag'] = False
-    event_manager.subscribe('app/quit', _on_app_quit)
+        nonlocal running
+        print("[Main] shutdown received, stopping simulation.")
+        running = False
+    EM.subscribe('simulation/shutdown', _on_app_quit)
 
     sim_command_queue = queue.Queue()
 
     sim.setStepping(True)
     config = get_default_config()
     
-    # Configure Bullet physics engine for optimal performance
-    configure_bullet_engine(sim, config)
+    # Register scene event handlers
+    setup_scene_event_handlers()
 
     # Setup camera & data collection
-    cam_rgb, floating_view_rgb = setup_rgbd_camera(sim, config)
+    cam_rgb, floating_view_rgb = setup_rgbd_camera(config)
     depth_collector = DepthDatasetCollector(
-        sim, cam_rgb,
+        cam_rgb,
         base_folder="data/depth_dataset",
         batch_size=config.get("batch_size", 100),
-        save_every_n_frames=config.get("dataset_capture_frequency", 5),  # Use the configurable frequency
-        split_ratio=(0.8, 0.1, 0.1),  # Standard ML dataset split
-        event_manager=event_manager
+        save_every_n_frames=config.get("dataset_capture_frequency", 5),
+        split_ratio=(0.8, 0.1, 0.1),
     )
 
     # Input & control setup
-    keyboard_manager = KeyboardManager(event_manager)
-    register_drone_keyboard_mapper(event_manager, keyboard_manager, config)
-    drone_control_manager = DroneControlManager(event_manager, sim)
-
-    # Start simulation loop in background thread
-    import threading
-    def sim_loop():
-        timestep = 0.05
-        while running['flag']:
-            with sim_lock(sim) as locked:
-                if locked:
-                    drone_control_manager.update(timestep)
+    register_drone_keyboard_mapper(config)
+    DroneControlManager()
+    
+    # Create GUI menu
+    MenuSystem(config, sim_command_queue)
+    
+    # Initialize time tracking for delta time calculation
+    last_time = time.time()
+    
+    # Run the main loop - everything happens in this single thread
+    while running:
+        # Calculate delta time
+        current_time = time.time()
+        delta_time = current_time - last_time
+        last_time = current_time
+        
+        # Process simulation step
+        with sim_lock() as locked:
+            if locked:
+                
+                # Process commands from queue
+                while not sim_command_queue.empty():
+                    fn, args, kwargs = sim_command_queue.get()
+                    fn(*args, **kwargs)
+                
+                # Update progressive scene creation if active
+                update_progressive_scene_creation()
                     
-                    # Process scene commands from queue
-                    while not sim_command_queue.empty():
-                        fn, args, kwargs = sim_command_queue.get()
-                        
-                        # Handle the case where the function is create_scene_progressive
-                        if fn.__name__ == "create_scene_progressive":
-                            # Make sure event_manager is included in the args
-                            if 'event_manager' not in kwargs:
-                                kwargs['event_manager'] = event_manager
-                            # Set the creator as the current creator for update_progressive_scene_creation
-                            creator = fn(sim, *args, **kwargs)
-                            set_current_creator(creator)
-                        else:
-                            result = fn(sim, *args, **kwargs)
-                            if fn.__name__ in ("create_scene", "restart_disaster_area"):
-                                event_manager.publish("scene/created", None)
-                    
-                    # Update progressive scene creation if active
-                    if update_progressive_scene_creation():
-                        # If scene creation is still running, this returns True
-                        pass
-                        
-                    # Handle vision sensor
-                    sim.handleVisionSensor(cam_rgb)
-                    # Publish simulation frame event for data capture
-                    event_manager.publish('simulation/frame', None)
-            safe_step(sim) 
-            time.sleep(timestep)
-    threading.Thread(target=sim_loop, daemon=True).start()
-
-    # Launch GUI menu (blocks until quit)
-    menu_system = MenuSystem(event_manager, sim, config, sim_command_queue)
-    menu_system.run()
+                # Handle vision sensor
+                sim.handleVisionSensor(cam_rgb)
+                
+                # Publish frame event with delta time
+                EM.publish('simulation/frame', delta_time)
+        
+        # Step the simulation
+        sim.step()
+    
     # After GUI closes, perform shutdown
-    shutdown_simulation(keyboard_manager, depth_collector, floating_view_rgb, sim)
+    SC.shutdown(depth_collector, floating_view_rgb)
     print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':

@@ -2,11 +2,13 @@
 
 from Interfaces.menu_interface import MenuInterface
 from Utils.config_utils import FIELDS
+from Core.event_manager import EventManager
+
+EM = EventManager.get_instance()
 
 class ConfigMenu(MenuInterface):
-    def __init__(self, config: dict, event_manager):
+    def __init__(self, config: dict):
         self.config = config
-        self.event_manager = event_manager
         self.fields = FIELDS
 
     def on_open(self):
@@ -43,7 +45,7 @@ class ConfigMenu(MenuInterface):
             try:
                 self.config[key] = field_type(val)
                 print(f"[Config Menu] {field['desc']} updated to {self.config[key]}")
-                self.event_manager.publish("config/updated", None)
+                EM.publish("config/updated", None)
             except ValueError:
                 print("[Config Menu] Invalid input. Please enter correct type.")
 

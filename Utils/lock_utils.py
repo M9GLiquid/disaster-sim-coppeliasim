@@ -1,10 +1,13 @@
 from contextlib import contextmanager
+from Managers.Connections.sim_connection import SimConnection
+
+SC = SimConnection.get_instance()
 
 @contextmanager
-def sim_lock(sim):
+def sim_lock():
     locked = False
     try:
-        sim.acquireLock()
+        SC.sim.acquireLock()
         locked = True
     except Exception as e:
         print(f"[Lock] Could not acquire simulation lock: {e}")
@@ -13,6 +16,6 @@ def sim_lock(sim):
     finally:
         if locked:
             try:
-                sim.releaseLock()
+                SC.sim.releaseLock()
             except Exception as e:
                 print(f"[Lock] Could not release simulation lock: {e}")
