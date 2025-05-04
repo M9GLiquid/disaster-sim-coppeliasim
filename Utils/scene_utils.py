@@ -1,123 +1,52 @@
 # Utils/scene_utils.py
 
 """
-Utility functions for scene management operations like clearing and restarting scenes.
-These functions operate on a higher level than individual object creators.
+Utility functions for scene management that work with the event-driven system.
 """
-
-from coppeliasim_zmqremoteapi_client import RemoteAPIClient
-import time
-from Managers.scene_core import create_scene
-from Managers.Connections.sim_connection import SimConnection
+from Managers.scene_manager import (
+    restart_scene, clear_scene, 
+    SCENE_CLEARED, SCENE_CREATION_COMPLETED
+)
 from Core.event_manager import EventManager
+from Managers.Connections.sim_connection import SimConnection
 
-EM = EventManager.get_instance()
+# Get singleton instances
 SC = SimConnection.get_instance()
-
-# Simulation state constants
-SIMULATION_STOPPED                 = 0
-SIMULATION_PAUSED                  = 1
-SIMULATION_ADVANCING_FIRSTAFTERSTOP = 2
-SIMULATION_ADVANCING_RUNNING        = 3
-SIMULATION_ADVANCING_LASTBEFOREPAUSE = 4
-SIMULATION_ADVANCING_FIRSTAFTERPAUSE = 5
-SIMULATION_ADVANCING_ABOUTTOSTOP     = 6
-SIMULATION_ADVANCING_LASTBEFORESTOP  = 7
-
-def start_sim_if_needed(timeout_sec=2.5):
-    """
-    Starts the simulation if it is stopped.
-    Returns the sim handle.
-    """
-    # Get sim from singleton
-    sim_state = SC.sim.getSimulationState()
-
-    if sim_state == SIMULATION_ADVANCING_RUNNING:
-        print("[Scene] Simulation already running.")
-        return 
-
-    if sim_state == SIMULATION_STOPPED:
-        print("[Scene] Starting simulation...")
-        SC.sim.startSimulation()
-        start_time = time.time()
-        while True:
-            try:
-                if SC.sim.getSimulationState() == SIMULATION_ADVANCING_RUNNING:
-                    print("[Scene] Simulation started (confirmed running).")
-                    return 
-            except Exception:
-                pass
-            if time.time() - start_time > timeout_sec:
-                current = SC.sim.getSimulationState()
-                if current == SIMULATION_STOPPED:
-                    print("[Scene] Warning: Start timeout. Still stopped, assuming running.")
-                else:
-                    print(f"[Scene] Warning: Start timeout. State={current}. Proceeding anyway.")
-                return 
-            time.sleep(0.05)
-    else:
-        print(f"[Scene] Unexpected state {sim_state}. Continuing.")
-
-def clear_disaster_area():
-    """
-    Clear all objects in the disaster scene area.
-    """
-    # Get sim from singleton
-    
-    try:
-        # Find the disaster group
-        group = SC.sim.getObject('/DisasterGroup')
-        
-        # Remove the whole group directly
-        # Using a direct removeObject call with parameters that ensure proper cleanup
-        SC.sim.removeObject(group) 
-        print("[SceneUtils] Disaster area cleared")
-        
-        # Publish event that scene has been cleared
-        EM.publish('scene/cleared', None)
-            
-        return True
-    except Exception as e:
-        print(f"[SceneUtils] Error clearing disaster area: {e}")
-        return False
+EM = EventManager.get_instance()
 
 def restart_disaster_area(config=None):
     """
-    Clear and recreate the disaster scene area.
+    Restart the disaster area with the given configuration.
     
     Args:
-        config: Configuration dictionary
-    """
-    # First clear current scene
-    clear_disaster_area()
-    
-    # Then create a new scene
-    if config is None:
-        from Utils.config_utils import get_default_config
-        config = get_default_config()
+        config: Scene configuration dict. If None, uses default configuration.
         
-    # Use synchronous scene creation
-    create_scene(config)
-    
-    print("[SceneUtils] Disaster area restarted")
-    
+    Returns:
+        True - the request was submitted via the event system
+    """
+    # Just delegate to the scene_manager's restart_scene function
+    restart_scene(config)
     return True
 
-# Setup listeners to handle scene events
 def setup_scene_event_handlers():
     """
-    Set up event handlers for scene-related events.
+    Set up additional event handlers for scene-related events.
+    
+    The core scene events are already handled by SceneManager,
+    but you can register additional handlers here.
     """
-    # Get EventManager singleton instance
+    # Initialize the SceneManager singleton to ensure event handlers are registered
     
-    def handle_scene_clear(_):
-        clear_disaster_area()
+    def on_scene_cleared(_):
+        """Handle scene cleared event"""
+        print("[SceneUtils] Scene cleared")
     
-    def handle_scene_restart(config):
-        restart_disaster_area(config)
+    def on_scene_completed(objects):
+        """Handle scene creation completed event"""
+        print(f"[SceneUtils] Scene creation completed with {len(objects)} objects")
     
-    # Register event handlers
-    EM.subscribe('scene/clear', handle_scene_clear)
-    EM.subscribe('scene/restart', handle_scene_restart)
+    # Subscribe to events
+    EM.subscribe(SCENE_CLEARED, on_scene_cleared)
+    EM.subscribe(SCENE_CREATION_COMPLETED, on_scene_completed)
     
     print("[SceneUtils] Scene event handlers registered")

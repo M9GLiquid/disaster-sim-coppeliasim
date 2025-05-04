@@ -45,7 +45,7 @@ class ConfigMenu(MenuInterface):
             try:
                 self.config[key] = field_type(val)
                 print(f"[Config Menu] {field['desc']} updated to {self.config[key]}")
-                EM.publish("config/updated", None)
+                EM.publish("config/updated", key)
             except ValueError:
                 print("[Config Menu] Invalid input. Please enter correct type.")
 

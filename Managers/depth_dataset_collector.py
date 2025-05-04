@@ -2,11 +2,12 @@ import os
 import threading
 import queue
 import numpy as np
+import math
 
 from Utils.capture_utils import capture_depth, capture_pose, capture_distance_to_victim
 from Utils.save_utils import save_batch_npz
-from Managers.scene_core import get_victim_direction
 from Utils.config_utils import get_default_config
+from Managers.scene_manager import SCENE_CREATION_COMPLETED
 
 from Managers.Connections.sim_connection import SimConnection
 from Core.event_manager import EventManager
@@ -21,6 +22,57 @@ DATASET_BATCH_SAVED = 'dataset/batch/saved'           # Batch successfully saved
 DATASET_BATCH_ERROR = 'dataset/batch/error'           # Error saving batch
 VICTIM_DETECTED = 'victim/detected'                   # Victim detected in frame
 DATASET_CONFIG_UPDATED = 'dataset/config/updated'     # Dataset configuration updated
+
+def get_victim_direction():
+    """
+    Returns a unit direction vector and distance from quadcopter to victim,
+    transformed to be relative to the drone's current orientation.
+    
+    Returns:
+        tuple: ((dx, dy, dz), distance) - normalized direction vector and Euclidean distance
+    """
+    try:
+        # Get object handles
+        quad = SC.sim.getObject('/Quadcopter')
+        vic = SC.sim.getObject('/Victim')
+
+        # Get positions
+        qx, qy, qz = SC.sim.getObjectPosition(quad, -1)
+        vx, vy, vz = SC.sim.getObjectPosition(vic, -1)
+
+        # Calculate vector components and distance in world coordinates
+        dx_world, dy_world, dz_world = vx - qx, vy - qy, vz - qz
+        distance = math.sqrt(dx_world*dx_world + dy_world*dy_world + dz_world*dz_world)
+        
+        # Get drone's orientation (Euler angles in radians)
+        drone_orientation = SC.sim.getObjectOrientation(quad, -1)
+        alpha, beta, gamma = drone_orientation  # Roll, pitch, yaw
+        
+        # Fix the transformation by first calculating the correct angle
+        # CoppeliaSim's coordinate system: X right, Y forward, Z up
+        # We need to adjust gamma (yaw) to match our display conventions
+        cos_yaw = math.cos(gamma)
+        sin_yaw = math.sin(gamma)
+        
+        # Correct transformation with proper rotation matrix
+        # This transformation ensures "forward" on the display corresponds to
+        # the drone's forward direction (Y-axis in CoppeliaSim)
+        # We need to invert the sign of dy to fix the backwards issue
+        dx = -dx_world * sin_yaw + dy_world * cos_yaw  # Left-right axis (X in display)
+        dy = -dx_world * cos_yaw - dy_world * sin_yaw   # Forward-back axis (Y in display)
+        dz = dz_world  # Keep the original Z difference for elevation
+
+        # Calculate normalized direction vector (unit vector)
+        if distance < 0.0001:  # Avoid division by near-zero
+            unit_vector = (0.0, 0.0, 0.0)
+        else:
+            unit_vector = (dx / distance, dy / distance, dz / distance)
+
+        return unit_vector, distance
+        
+    except Exception as e:
+        print(f"[DepthCollector] Error calculating victim direction: {e}")
+        return (0.0, 0.0, 0.0), -1.0  # Return zero vector and invalid distance on error
 
 class DepthDatasetCollector:
     def __init__(self, sensor_handle,
@@ -75,8 +127,9 @@ class DepthDatasetCollector:
 
         # data capture activation flag
         self.active = False
-        # subscribe to scene creation event to start data capture
-        EM.subscribe('scene/created', self._on_scene_created)
+        
+        # Subscribe to scene creation completed event
+        EM.subscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
 
         # Event subscriptions
         EM.subscribe('keyboard/move',   self._on_move)
@@ -85,14 +138,14 @@ class DepthDatasetCollector:
         # subscribe to simulation frame events for data capture
         EM.subscribe('simulation/frame', self._on_simulation_frame)
 
-    def _on_scene_created(self, _):
+    def _on_scene_completed(self, _):
         """
         Activate data collection once the scene is created.
         """
         # Only activate once
         if not self.active:
             if self.verbose:
-                print("[DepthCollector] Scene created event received. Activating data capture.")
+                print("[DepthCollector] Scene creation completed. Activating data capture.")
             self.active = True
 
     def capture(self):

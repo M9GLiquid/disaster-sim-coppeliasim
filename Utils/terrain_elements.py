@@ -6,7 +6,37 @@ SC = SimConnection.get_instance()
 
 FLOOR_THICKNESS = 0.5
 
+def does_object_exist_by_alias(alias):
+    """
+    Check if an object with the given alias exists in the scene.
+    Simple implementation that returns None if the object doesn't exist.
+    
+    Args:
+        alias: The alias to search for
+    
+    Returns:
+        The object handle if found, None otherwise
+    """
+    # Direct approach - if this fails, it will propagate the error
+    # which is preferable to silently failing
+    handles = SC.sim.getObjectsInTree(SC.sim.handle_scene, SC.sim.handle_all, 0)
+    
+    for h in handles:
+        # For each handle, check if it has the requested alias
+        if SC.sim.getObjectAlias(h) == alias:
+            return h
+    
+    # If we reach here, the object doesn't exist
+    return None
+
 def create_floor(area_size):
+    # Check for an existing floor
+    existing = does_object_exist_by_alias('DisasterFloor')
+    if existing is not None:
+        # Remove the existing floor so we can create a new one with the updated size
+        SC.sim.removeObject(existing)
+        
+    # Create a new floor with the specified size
     size = [area_size, area_size, FLOOR_THICKNESS]
     floor = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_cuboid, size, 0)
     # Floor is the only element that needs collision enabled
@@ -186,23 +216,68 @@ def create_rock(position, size):
     return rock
 
 def create_victim(position=(0, 0), size=(0.3, 0.1, 1.2)):
-    """
-    Create a thin red disc representing the victim.
-    Just a flat circular marker on the ground.
-    """
-    # create a flat disc of 0.5m diameter and 0.1m thickness
-    dims = [0.5, 0.5, 0.1]
-    victim = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_cylinder, dims, 0)
+    print(f"[DEBUG] create_victim called with position={position}")
+    # Prevent duplicate victim creation: search scene tree for object alias
+    existing = does_object_exist_by_alias('Victim')
+    if existing is not None:
+        print(f"[DEBUG] Found existing victim object with handle {existing}")
+        existing_pos = SC.sim.getObjectPosition(existing, -1)
+        print(f"[DEBUG] Existing victim position: {existing_pos}")
+        
+        # MODIFIED: Instead of just returning, update the existing victim's position
+        # Check if the existing victim is already positioned correctly
+        x, y = position
+        z = FLOOR_THICKNESS + 0.05  # 5cm above ground to avoid z-fighting
+        
+        # Force update the position
+        try:
+            SC.sim.setObjectPosition(existing, -1, [x, y, z])
+            new_pos = SC.sim.getObjectPosition(existing, -1)
+            print(f"[DEBUG] Updated existing victim position to {new_pos}")
+            
+            # Try to reset the parent to -1 (scene root) to avoid hierarchy issues
+            try:
+                # Only change parent if it's not already at the scene root
+                current_parent = SC.sim.getObjectParent(existing)
+                if current_parent != -1:
+                    print(f"[DEBUG] Removing existing victim from its current parent ({current_parent})")
+                    SC.sim.setObjectParent(existing, -1, True)
+            except Exception as e:
+                print(f"[DEBUG] Failed to reset victim parent: {e}")
+                
+            # Make sure it's visible with proper color
+            try:
+                SC.sim.setShapeColor(existing, None, SC.sim.colorcomponent_ambient_diffuse, [1.0, 1.0, 1.0])  # white
+                SC.sim.setShapeColor(existing, None, SC.sim.colorcomponent_emission, [0.5, 0.5, 0.5])  # stronger glow
+            except Exception as e:
+                print(f"[DEBUG] Failed to update victim colors: {e}")
+                
+        except Exception as e:
+            print(f"[DEBUG] Failed to update victim position: {e}")
+        
+        return existing
+        
+    # Create a disc with 1.0m diameter (0.5m radius)
+    radius = 0.5  # radius (0.5m)
+    height = 0.05  # Height/thickness of the disc - reduced for better visibility
+    victim = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_disc, [radius, radius, height], 0)
+    print(f"[DEBUG] Created new victim object with handle {victim}")
     SC.sim.setObjectAlias(victim, "Victim")
     # Disable collisions for victim
     SC.sim.setBoolProperty(victim, "collidable", False)
     SC.sim.setBoolProperty(victim, "respondable", False)
-    SC.sim.setShapeColor(victim, None, SC.sim.colorcomponent_ambient_diffuse, [1.0, 0.2, 0.2])  # red
-
+    # Set color to white for better visibility
+    SC.sim.setShapeColor(victim, None, SC.sim.colorcomponent_ambient_diffuse, [1.0, 1.0, 1.0])  # white
+    
+    # Set emission to make it glow slightly for better visibility in dark areas
+    SC.sim.setShapeColor(victim, None, SC.sim.colorcomponent_emission, [0.5, 0.5, 0.5])  # stronger glow
+    
     x, y = position
-    # Place the disc just slightly above the floor to avoid z-fighting
-    z = FLOOR_THICKNESS + 0.01  
+    # Place the disc slightly higher above the floor for better visibility
+    z = FLOOR_THICKNESS + 0.05  # 5cm above ground to avoid z-fighting
     SC.sim.setObjectPosition(victim, -1, [x, y, z])
+    actual_pos = SC.sim.getObjectPosition(victim, -1)
+    print(f"[DEBUG] Set victim position to ({x}, {y}, {z}), actual position: {actual_pos}")
     SC.sim.setObjectOrientation(victim, -1, [0, 0, 0])  # flat on ground
 
     return victim

@@ -4,10 +4,13 @@ Contains shared utilities for position handling, object creation, and property s
 """
 import random
 import math
-from Managers.Connections.sim_connection import SimConnection
 from Utils.terrain_elements import FLOOR_THICKNESS
 
+from Managers.Connections.sim_connection import SimConnection
 SC = SimConnection.get_instance()
+
+from Core.event_manager import EventManager
+EM = EventManager.get_instance()
 
 def normalize_position(pos):
     """Normalize position to 2D if it has more dimensions."""

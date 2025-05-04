@@ -16,98 +16,7 @@ The system supports manual control, dataset collection for AI training, and dyna
 - 🛠️ **Configuration menu** to adjust scene parameters at runtime
 - 🧠 **Event-driven depth dataset collection** Depth images for machine learning, triggered by simulation events
 - 🎮 **Interactive control menus** for creating, clearing, restarting scenes
-
----
-
-## Project Structure
-
-| Folder/File                             | Purpose                                                                                         |
-|-----------------------------------------|-------------------------------------------------------------------------------------------------|
-| `.gitignore`                            | Specifies files and directories for Git to ignore                                               |
-| `README.md`                             | Project overview, setup instructions, and usage guide                                           |
-| `main.py`                               | Entry point: initializes sim, menus, controls, and runs the main loop                           |
-| `CHANGELOG.md`                          | Tracks all notable changes to the project                                                      |
-| `TODO.md`                               | Tracks planned features and improvements                                                        |
-
-**Controls/**
-
-| Folder/File                       | Purpose                                                                                         |
-|-----------------------------------|-------------------------------------------------------------------------------------------------|
-| `drone_control_manager.py`        | Orchestrates keyboard events into velocity & rotation targets                                   |
-| `drone_keyboard_mapper.py`        | Maps WASD/QE/Space/Z keys to `keyboard/move` and `keyboard/rotate` events                       |
-| `drone_movement_transformer.py`   | Transforms local forward/side/up + yaw-rate into world-frame velocities and applies them        |
-| `target_mover.py`                 | Moves the `/target` dummy with simple inertia toward desired velocities and yaw rates           |
-
-**Core/**
-
-| Folder/File             | Purpose                                                         |
-|-------------------------|-----------------------------------------------------------------|
-| `event_manager.py`      | Thread-safe `subscribe`/`publish` messaging for decoupled modules|
-
-**Managers/**
-
-| Folder/File                      | Purpose                                                                                                   |
-|----------------------------------|-----------------------------------------------------------------------------------------------------------|
-| `depth_dataset_collector.py`     | Captures depth frames, poses, actions, and victim-direction vectors into batched `.npz` files            |
-| `keyboard_manager.py`            | Low-level, cross-platform raw key capture thread that publishes `keyboard/key_pressed`                    |
-| `menu_manager.py`                | Registry and dispatcher for named menus (`main`, `config`, etc.)                                         |
-| `menu_system.py`                 | Routes ENTER/ESC to open/close menus, dispatches commands to the active menu                              |
-| `scene_core.py`                  | Core functionality for scene generation with floor, trees, rocks                                         |
-| `scene_creator_base.py`          | Abstract base class to standardize scene creation approaches                                             |
-| `scene_object_creators.py`       | Helper functions for creating scene objects                                                              |
-| `scene_pos_sampler.py`           | Samples positions for placing objects in the scene                                                       |
-| `scene_progressive.py`           | Handles progressive procedural scene generation with event-driven updates                                |
-| `typing_mode_manager.py`         | Gathers typed characters in "chat" mode, emits `typing/command_ready` or `typing/exit`                   |
-
-**Managers/Connections/**
-
-| Folder/File                | Purpose                                                                 |
-|----------------------------|-------------------------------------------------------------------------|
-| `sim_connection.py`       | Connects to CoppeliaSim via ZMQ, starts/stops simulation, and handles clean shutdown|
-
-**Menus/**
-
-| Folder/File           | Purpose                                                                                           |
-|-----------------------|---------------------------------------------------------------------------------------------------|
-| `main_menu.py`        | Shows “Create”, “Restart”, “Clear”, “Config”, and “Quit” options; publishes `menu/selected`       |
-| `config_menu.py`      | Lists editable config fields (key + description), lets you toggle/update values                   |
-
-**Sensors**
-
-| Folder/File                  | Purpose                                                          |
-|------------------------------|------------------------------------------------------------------|
-| `rgbd_camera_setup.py`       | Attaches an RGB & depth vision sensor to the drone, sets up floating views |
-
-**Utils**
-
-| Folder/File                   | Purpose                                                                 |
-|-------------------------------|-------------------------------------------------------------------------|
-| `capture_utils.py`            | Grabs depth images and drone pose from the sim                          |
-| `config_utils.py`             | Defines `FIELDS` schema and `get_default_config()` with adjustable parameters |
-| `lock_utils.py`               | Provides thread-safe locking mechanisms                                 |
-| `save_utils.py`               | Saves batches of depth/pose/actions/victim_dirs in compressed `.npz` files |
-| `scene_helpers.py`            | Utility functions for scene creation and event handling                |
-| `scene_utils.py`              | Starts/stops simulation if needed, clears `DisasterGroup`, calls `create_scene` |
-| `terrain_elements.py`         | Creates floor, trees (fallen/standing), and rocks primitives            |
-
-**Docs/**
-
-| Folder/File                  | Purpose                                                                 |
-|------------------------------|-------------------------------------------------------------------------|
-| `Docs/en/`                   | Contains API documentation, guides, and references                     |
-| `Docs/index/`                | Index files for documentation                                          |
-| `Docs/js/`                   | JavaScript files for documentation                                      |
-| `Docs/templates/`            | Templates for generating documentation                                 |
-| `Docs/wb_img/`               | Images used in documentation                                           |
-
-**Data**
-
-| Folder/File                  | Purpose                                                                 |
-|------------------------------|-------------------------------------------------------------------------|
-| `data/depth_dataset/`        | Contains training, validation, and test datasets                       |
-| `data/depth_dataset/train/`  | Training dataset                                                       |
-| `data/depth_dataset/val/`    | Validation dataset                                                     |
-| `data/depth_dataset/test/`   | Test dataset                                                           |
+- 📊 **Status tab with victim detection visualization** including direction indicator, elevation, distance, and signal strength
 
 ---
 
@@ -173,6 +82,20 @@ Data is saved as compressed `.npz` files in `data/depth_dataset/{train,val,test}
   - `distances`: float32 array (N,)
   - `actions`: int32 array (N,)
   - `victim_dirs`: float32 array (N, 4)  # (ux,uy,uz,distance)
+
+---
+
+## Victim Detection Visualization
+
+The Status Tab provides comprehensive visualization for victim detection:
+
+- **Direction Indicator**: Radar-like display showing victim's position accurately relative to drone's heading
+- **Elevation Indicator**: Displays victim's height difference in meters with color coding
+- **Distance Display**: Shows distance to victim with color coding (green=near, orange=medium, red=far)
+- **Signal Strength**: Visual indicator that increases as drone gets closer to victim
+- **Safety Check**: System ensures victims spawn at least 2m away from the drone's starting position
+
+All visualizations update in real-time through the event subscription system, with coordinate transformations aligned to the drone's orientation.
 
 ---
 

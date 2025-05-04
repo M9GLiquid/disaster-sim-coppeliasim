@@ -26,11 +26,11 @@ FIELDS = [
 def get_default_config():
     return {
         "area_size": 10.0,
-        "num_trees": 50,
+        "num_trees": 5,
         "fraction_standing": 0.85,
-        "num_rocks": 55,
-        "num_bushes": 50,
-        "num_foliage": 50,
+        "num_rocks": 5,
+        "num_bushes": 5,
+        "num_foliage": 5,
         "clear_zone_center": (0, 0),
         "clear_zone_radius": 0.5,
         "verbose": True,

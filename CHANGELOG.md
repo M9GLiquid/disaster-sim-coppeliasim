@@ -1,13 +1,49 @@
-# Changelog
+## [V.1.0.0] - 2025-05-05
 
-All notable changes to the AI for Robotics project will be documented in this file.
+### Added
+- Added Status tab with comprehensive victim detection visualization:
+  - Direction indicator with radar-like display showing victim's position accurately relative to drone's heading
+  - Elevation indicator displaying victim's height difference in meters with color coding
+  - Distance display with color coding (green=near, orange=medium, red=far)
+  - Signal strength indicator that increases as drone gets closer to victim
+- Enhanced error handling for object existence checking with new `does_object_exist_by_alias()` function
+- Added event subscription system for real-time victim position tracking
+- Added complete scene_manager.py implementation with fully event-driven scene creation
+- Added visual feedback when configuration settings are modified
+- Added safety distance check to ensure victim spawns at least 2m away from drone's starting position
+- Added category-based scene organization with proper parent-child relationships
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+### Changed
+- Completely refactored scene creation system:
+  - Removed progressive/threaded creation in favor of event-based architecture
+  - Implemented batch processing to maintain UI responsiveness
+- Enhanced configuration system:
+  - Improved config saving/loading with proper UI synchronization
+  - Added `_on_config_updated_gui` method to handle external config changes
+  - Implemented visual highlights to show when settings are modified
+- Modified floor creation to ensure it updates size when area_size configuration changes
+- Improved UI responsiveness using Tkinter's `after()` method for safer UI updates
+- Enhanced SimConnection shutdown process to safely handle event-triggered shutdowns
+- Updated depth_dataset_collector to properly emit victim vector data for position tracking
+- Extended event system with more topics and improved handling
+- Implemented proper coordinate transformation to align victim indicator with drone's orientation
 
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
-- MAJOR version (X) when making incompatible API changes
-- MINOR version (Y) when adding functionality in a backward compatible manner
-- PATCH version (Z) when making backward compatible bug fixes
+### Fixed
+- Fixed configuration not saving/loading properly with direct UI synchronization
+- Fixed floor not resizing when area_size is changed in configuration
+- Fixed potential UI freezing during updates by properly scheduling UI operations
+- Improved error handling in victim direction calculation
+- Corrected coordinate transformation in get_victim_direction() to show accurate victim positions
+- Fixed circular reference issues in scene hierarchy with improved category naming
+
+### Removed
+- Removed multiple redundant scene creation files:
+  - scene_core.py
+  - scene_creator_base.py
+  - scene_progressive.py
+  - scene_pos_sampler.py
+  - scene_object_creators.py
+- Eliminated progressive scene creation in favor of more efficient event-based approach
 
 ## [V.0.10.0] - 2025-05-03
 

@@ -13,12 +13,14 @@ from Managers.menu_system                import MenuSystem
 from Managers.Connections.sim_connection import SimConnection
 from Controls.drone_control_manager      import DroneControlManager
 from Utils.lock_utils                    import sim_lock
-from Managers.scene_progressive          import update_progressive_scene_creation
+from Managers.scene_manager              import get_scene_manager
 
 
 EM = EventManager.get_instance()
 KeyboardManager.get_instance()
 SC = SimConnection.get_instance()
+# Initialize SceneManager early to ensure its event handlers are registered
+SM = get_scene_manager()
 
 def main():
     # Get singleton instances
@@ -78,8 +80,7 @@ def main():
                     fn, args, kwargs = sim_command_queue.get()
                     fn(*args, **kwargs)
                 
-                # Update progressive scene creation if active
-                update_progressive_scene_creation()
+                # No need to call update_progressive_scene_creation - the event system handles this
                     
                 # Handle vision sensor
                 sim.handleVisionSensor(cam_rgb)

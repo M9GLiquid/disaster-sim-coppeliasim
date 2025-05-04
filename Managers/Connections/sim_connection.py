@@ -76,9 +76,12 @@ class SimConnection:
                 return
             time.sleep(0.05)
     
-    def shutdown(self, depth_collector, floating_view_rgb):
+    def shutdown(self, data=None, depth_collector=None, floating_view_rgb=None):
         """
         Cleanly shutdown keyboard control, camera viewer, disconnect from simulation.
+        
+        When called via event system, data will be the event data and depth_collector/floating_view_rgb will be None.
+        When called directly from main.py, data will be None and the other arguments will be provided.
         """
         print("[Connection] Shutting down KeyboardManager...")
         try:
@@ -86,19 +89,25 @@ class SimConnection:
         except Exception as e:
             print(f"[Connection] Error stopping KeyboardManager: {e}")
 
-        # Remove camera floating view
-        print("[Connection] Removing Camera View...")
-        try:
-            self.sim.floatingViewRemove(floating_view_rgb)
-        except Exception as e:
-            print(f"[Connection] Error removing Camera View: {e}")
+        # Remove camera floating view if provided
+        if floating_view_rgb is not None:
+            print("[Connection] Removing Camera View...")
+            try:
+                self.sim.floatingViewRemove(floating_view_rgb)
+            except Exception as e:
+                print(f"[Connection] Error removing Camera View: {e}")
+        else:
+            print("[Connection] No camera view to remove (not provided)")
 
-        # Shutdown depth dataset collector
-        print("[Connection] Shutting down DepthDatasetCollector...")
-        try:
-            depth_collector.shutdown()
-        except Exception as e:
-            print(f"[Connection] Error shutting down DepthDatasetCollector: {e}")
+        # Shutdown depth dataset collector if provided
+        if depth_collector is not None:
+            print("[Connection] Shutting down DepthDatasetCollector...")
+            try:
+                depth_collector.shutdown()
+            except Exception as e:
+                print(f"[Connection] Error shutting down DepthDatasetCollector: {e}")
+        else:
+            print("[Connection] No depth collector to shutdown (not provided)")
 
         print("[Connection] Disconnecting Remote API client...")
         try:

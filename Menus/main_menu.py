@@ -1,8 +1,8 @@
 # Managers/main_menu.py
 
 from Interfaces.menu_interface import MenuInterface
-from Utils.scene_utils import clear_disaster_area, restart_disaster_area
-from Managers.scene_progressive import create_scene_progressive
+from Utils.scene_utils import restart_disaster_area
+from Managers.scene_manager import create_scene, clear_scene
 from Core.event_manager import EventManager
 
 EM = EventManager.get_instance()
@@ -19,6 +19,7 @@ class MainMenu(MenuInterface):
             ('1', 'Create disaster area', self._handle_create),
             ('2', 'Add dynamic flying objects', self._handle_dynamic),
             ('3', 'Restart disaster area', self._handle_restart),
+            ('4', 'Clear area', self._handle_clear),
             ('9', 'Modify configuration', lambda: 'menu/config'),
             ('q', 'Quit', self._handle_quit),
         ]
@@ -36,16 +37,18 @@ class MainMenu(MenuInterface):
         return None
 
     def _handle_create(self):
-        # Use event-based progressive scene creation instead of queued function
-        EM.publish('scene/creation/request', self.config)
+        # Use event-based scene creation
+        create_scene(self.config)
         return None
 
     def _handle_restart(self):
-        self.sim_queue.put((restart_disaster_area, [self.config], {}))
+        # Use event-based restart
+        restart_disaster_area(self.config)
         return None
 
     def _handle_clear(self):
-        self.sim_queue.put((clear_disaster_area, [], {}))
+        # Use event-based clear
+        clear_scene()
         return None
 
     def _handle_dynamic(self):
