@@ -14,6 +14,7 @@ from Managers.Connections.sim_connection import SimConnection
 from Controls.drone_control_manager      import DroneControlManager
 from Utils.lock_utils                    import sim_lock
 from Managers.scene_manager              import get_scene_manager
+from Managers.camera_manager             import CameraManager
 
 
 EM = EventManager.get_instance()
@@ -21,6 +22,8 @@ KeyboardManager.get_instance()
 SC = SimConnection.get_instance()
 # Initialize SceneManager early to ensure its event handlers are registered
 SM = get_scene_manager()
+# Initialize CameraManager to handle vision sensors
+CM = CameraManager.get_instance()
 
 def main():
     # Get singleton instances
@@ -46,6 +49,9 @@ def main():
 
     # Setup camera & data collection
     cam_rgb, floating_view_rgb = setup_rgbd_camera(config)
+    # Register the vision sensor with the camera manager
+    CM.register_sensor(cam_rgb)
+    
     depth_collector = DepthDatasetCollector(
         cam_rgb,
         base_folder="data/depth_dataset",
@@ -81,9 +87,7 @@ def main():
                     fn(*args, **kwargs)
                 
                 # No need to call update_progressive_scene_creation - the event system handles this
-                    
-                # Handle vision sensor
-                sim.handleVisionSensor(cam_rgb)
+                # Vision sensors are now handled by CameraManager via events
                 
                 # Publish frame event with delta time
                 EM.publish('simulation/frame', delta_time)
@@ -92,7 +96,12 @@ def main():
         sim.step()
     
     # After GUI closes, perform shutdown
-    SC.shutdown(depth_collector, floating_view_rgb)
+    # Let SimConnection handle all the shutdown steps
+    SC.shutdown(
+        depth_collector=depth_collector,
+        floating_view_rgb=floating_view_rgb,
+        camera_manager=CM
+    )
     print("[Main] Shutdown complete.")
 
 if __name__ == '__main__':

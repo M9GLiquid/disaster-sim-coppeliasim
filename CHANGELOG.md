@@ -1,3 +1,29 @@
+## [V.1.1.1] - 2023-07-24
+
+### Added
+- Added new CameraManager singleton class to handle vision sensors through the event system
+- Added capture_rgb function in Utils/capture_utils.py to properly capture and flip RGB images
+- Added automatic sensor removal for invalid vision sensors
+
+### Changed
+- Refactored vision sensor handling to use event-driven approach
+- Enhanced SimConnection.shutdown method to accept camera_manager parameter
+- Modified shutdown sequence to properly clean up all manager instances
+- Improved parameter handling using named parameters for clarity
+
+### Fixed
+- Fixed 'int' object has no attribute 'shutdown' error in SimConnection.shutdown
+- Fixed incorrect parameter order in SimConnection.shutdown method
+- Fixed "object does not exist" error in vision sensor handling
+- Fixed image orientation by applying np.flipud() to image data instead of camera handle
+
+## [V.1.1.0] - 2023-07-24
+
+### Added
+- Added View_Depth_Image.py tool for viewing and manipulating depth image datasets
+- Added validator.py tool for validating image orientation with preview capability
+- Added flip.py batch processing tool for flipping entire datasets of images
+
 ## [V.1.0.0] - 2025-05-05
 
 ### Added

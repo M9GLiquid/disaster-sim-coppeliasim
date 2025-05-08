@@ -14,7 +14,21 @@ def capture_depth(sensor_handle):
     raw_depth, (width, height) = SC.sim.getVisionSensorDepth(sensor_handle)
     depth_buffer = SC.sim.unpackFloatTable(raw_depth)
     depth_img = np.array(depth_buffer, dtype=np.float32).reshape((height, width))
+    # Flip the image upside down
+    depth_img = np.flipud(depth_img)
     return depth_img
+
+def capture_rgb(sensor_handle):
+    """
+    Capture and return RGB image from a vision sensor, flipped upside down.
+    """
+    SC.sim.handleVisionSensor(sensor_handle)
+    raw_rgb, (width, height) = SC.sim.getVisionSensorImage(sensor_handle)
+    rgb_buffer = SC.sim.unpackFloatTable(raw_rgb)
+    rgb_img = np.array(rgb_buffer, dtype=np.float32).reshape((height, width, 3))
+    # Flip the image upside down
+    rgb_img = np.flipud(rgb_img)
+    return rgb_img
 
 def capture_pose():
     """

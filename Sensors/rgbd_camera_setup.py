@@ -30,6 +30,7 @@ def setup_rgbd_camera(config):
 
     # ─── Create Main RGB Sensor ───
     cam_rgb = SC.sim.createVisionSensor(options, intParams, floatParams)
+    
     SC.sim.setObjectAlias(cam_rgb, "DroneSensorRGB")
     SC.sim.setObjectParent(cam_rgb, parent_handle, False)
     SC.sim.setObjectPosition(cam_rgb, parent_handle, [-0.1, 0.0, 0.0])

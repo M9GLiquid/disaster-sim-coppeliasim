@@ -76,18 +76,32 @@ class SimConnection:
                 return
             time.sleep(0.05)
     
-    def shutdown(self, data=None, depth_collector=None, floating_view_rgb=None):
+    def shutdown(self, data=None, depth_collector=None, floating_view_rgb=None, camera_manager=None):
         """
         Cleanly shutdown keyboard control, camera viewer, disconnect from simulation.
         
         When called via event system, data will be the event data and depth_collector/floating_view_rgb will be None.
-        When called directly from main.py, data will be None and the other arguments will be provided.
+        When called directly from main.py, use named parameters for clarity.
+        
+        Args:
+            data: Event data when called via event system
+            depth_collector: DepthDatasetCollector instance to shutdown
+            floating_view_rgb: Floating view handle to remove
+            camera_manager: CameraManager instance to shutdown
         """
         print("[Connection] Shutting down KeyboardManager...")
         try:
             KM.stop()
         except Exception as e:
             print(f"[Connection] Error stopping KeyboardManager: {e}")
+
+        # Shutdown camera manager if provided
+        if camera_manager is not None:
+            print("[Connection] Shutting down CameraManager...")
+            try:
+                camera_manager.shutdown()
+            except Exception as e:
+                print(f"[Connection] Error shutting down CameraManager: {e}")
 
         # Remove camera floating view if provided
         if floating_view_rgb is not None:
