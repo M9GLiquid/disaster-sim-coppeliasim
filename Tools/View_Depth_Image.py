@@ -28,6 +28,10 @@ import tkinter as tk
 from tkinter import ttk  # For advanced widgets like Combobox
 from PIL import Image, ImageTk
 import math  # For grid layout calculations
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
+
+# Initialize logger
+logger = get_logger()
 
 # Default path to the dataset
 DATASET_DIR = "data/depth_dataset"
@@ -43,6 +47,7 @@ class ImageViewer:
         Args:
             root: The tkinter root window
         """
+        logger.info("ImageViewer", "Initializing depth image viewer application")
         self.root = root
         self.root.title("Depth Image Viewer")
         
@@ -62,6 +67,7 @@ class ImageViewer:
     
     def initialize_state(self):
         """Initialize application state variables."""
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", "Initializing application state")
         # Dataset navigation
         self.npz_files = self.find_npz_files()
         self.current_file_idx = 0
@@ -73,6 +79,8 @@ class ImageViewer:
             basename = os.path.basename(file_path)
             display_name = os.path.splitext(basename)[0]  # Remove extension
             self.file_display_names.append(display_name)
+        
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", f"Found {len(self.npz_files)} .npz files")
         
         # Image manipulation
         self.flip_actions = []  # List of flip actions for current file
@@ -266,61 +274,91 @@ class ImageViewer:
         Find all .npz files in the dataset directory.
         
         Returns:
-            list: Sorted list of .npz file paths
+            list: Sorted list of file paths
         """
-        all_files = []
-        for root, _, _ in os.walk(DATASET_DIR):
-            npz_files = glob.glob(os.path.join(root, "*.npz"))
-            all_files.extend(npz_files)
-        return sorted(all_files)
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", f"Searching for .npz files in {DATASET_DIR}")
+        if not os.path.exists(DATASET_DIR):
+            logger.error("ImageViewer", f"Dataset directory not found: {DATASET_DIR}")
+            print(f"Error: Dataset directory not found: {DATASET_DIR}")
+            return []
+        
+        npz_files = glob.glob(os.path.join(DATASET_DIR, "**", "*.npz"), recursive=True)
+        npz_files.sort()
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", f"Found {len(npz_files)} .npz files")
+        return npz_files
     
     def load_file(self):
-        """Load the current .npz file and reset flip actions."""
-        if 0 <= self.current_file_idx < len(self.npz_files):
-            file_path = self.npz_files[self.current_file_idx]
-            try:
-                # Load the file data
-                self.current_batch = np.load(file_path, allow_pickle=True)
-                
-                if 'depths' not in self.current_batch:
-                    self.info_text.config(text=f"Error: 'depths' not found in {os.path.basename(file_path)}")
-                    return
-                    
+        """Load the current NPZ file and prepare images for display."""
+        if not self.npz_files:
+            logger.warning("ImageViewer", "No NPZ files found to load")
+            self.debug_print("No NPZ files found to load")
+            return
+            
+        try:
+            current_file = self.npz_files[self.current_file_idx]
+            logger.debug_at_level(DEBUG_L1, "ImageViewer", f"Loading file: {current_file}")
+            
+            # Reset flip actions for new file
+            self.flip_actions = []
+            
+            # Load the NPZ file
+            self.current_batch = np.load(current_file, allow_pickle=True)
+            
+            # Get depth arrays from the loaded file
+            if 'depths' in self.current_batch:
                 depths = self.current_batch['depths']
+                logger.debug_at_level(DEBUG_L2, "ImageViewer", f"Loaded depths with shape: {depths.shape}")
                 
-                # Initialize flip tracking and image copies
-                self.flip_actions = [['none'] for _ in range(len(depths))]
-                self.flipped_images = [depths[i].copy() for i in range(len(depths))]
+                # Initialize flip actions list for each image
+                self.flip_actions = [[] for _ in range(len(depths))]
                 
-                # Update the batch grid
-                self.setup_batch_grid()
+                # Update the batch grid display
                 self.show_batch_grid()
-                    
-                # Force immediate update to display images without delay
-                self.root.update_idletasks()
                 
-            except Exception as e:
-                self.info_text.config(text=f"Error loading {file_path}: {e}")
-                self.show_status_message(f"Error loading file: {e}", color="red")
+                # Update status
+                batch_shape = str(depths.shape)
+                self.info_text.config(text=f"File {self.current_file_idx + 1}/{len(self.npz_files)}: {os.path.basename(current_file)} - Batch shape: {batch_shape}")
+            else:
+                logger.warning("ImageViewer", f"No depths found in file: {current_file}")
+                self.debug_print(f"No 'depths' key in {current_file}")
+                self.info_text.config(text=f"File {self.current_file_idx + 1}/{len(self.npz_files)}: {os.path.basename(current_file)} - No depths found!")
+        
+        except Exception as e:
+            logger.error("ImageViewer", f"Error loading file {self.npz_files[self.current_file_idx]}: {str(e)}")
+            self.debug_print(f"Error loading file: {str(e)}")
+            self.info_text.config(text=f"Error loading file: {str(e)}")
     
     def save_current_file(self):
-        """Save the current file with flipped images."""
-        file_path = self.npz_files[self.current_file_idx]
-        try:
-            # Create new data dictionary with all original keys
-            data = dict(self.current_batch.items())
-            # Replace depths with flipped versions
-            data['depths'] = np.stack(self.flipped_images)
-            # Save back to the same file
-            np.savez_compressed(file_path, **data)
+        """Save the current NPZ file if it has been modified."""
+        if not self.npz_files or not self.flipped_images:
+            logger.debug_at_level(DEBUG_L1, "ImageViewer", "No flipped images to save")
+            return False
             
-            # Show success message in status label
-            file_name = os.path.basename(file_path)
-            self.show_status_message(f"Saved: {file_name}")
+        current_file = self.npz_files[self.current_file_idx]
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", f"Saving changes to file: {current_file}")
+        
+        try:
+            # Create a copy of the current data
+            data_dict = {key: self.current_batch[key] for key in self.current_batch.keys()}
+            
+            # Replace the depths with our flipped version
+            data_dict['depths'] = self.flipped_images
+            
+            # Save the modified data
+            np.savez_compressed(current_file, **data_dict)
+            
+            # Show success message
+            self.show_status_message(f"Changes saved to {os.path.basename(current_file)}")
+            logger.info("ImageViewer", f"Successfully saved changes to {current_file}")
+            
+            # Reset flip actions since we've saved
+            self.flip_actions = [[] for _ in range(len(self.flipped_images))]
+            
             return True
+        
         except Exception as e:
-            # Instead of showing the error, just return False silently
-            self.debug_print(f"Error during save (likely false positive): {e}")
+            logger.error("ImageViewer", f"Error saving file {current_file}: {str(e)}")
+            self.show_status_message(f"Error saving file: {str(e)}", color="red")
             return False
     
     #--- Image Display and Navigation ---#
@@ -412,40 +450,54 @@ class ImageViewer:
     #--- Flip Operations ---#
     
     def batch_flip_lr(self):
-        """Apply flip left-right to all images."""
-        if self.current_batch is None or len(self.flipped_images) == 0:
-            self.show_status_message("No batch available to flip", color="red")
+        """Flip all images in the current batch left-to-right."""
+        if not self.npz_files or 'depths' not in self.current_batch:
             return
-        
-        # Apply to all images in batch
-        for i in range(len(self.flipped_images)):
-            # Flip the image
-            self.flipped_images[i] = np.fliplr(self.flipped_images[i])
-            # Toggle fliplr in the action list
-            self.toggle_flip_action(i, 'fliplr')
-        
-        # Update the batch grid
-        self.update_batch_grid()
             
-        self.show_status_message("Applied left-right flip to all images")
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", "Performing batch left-right flip")
+        depths = self.current_batch['depths']
+        
+        # Create a flipped copy
+        if self.flipped_images is None:
+            self.flipped_images = depths.copy()
+        
+        # Flip left-right (axis=1)
+        self.flipped_images = np.flip(self.flipped_images, axis=2)
+        
+        # Add flip action to every image's history
+        for i in range(len(depths)):
+            self.flip_actions[i].append('lr')
+        
+        # Update the display
+        self.show_status_message("Flipped all images left-right")
+        self.show_batch_grid()
+        
+        logger.debug_at_level(DEBUG_L2, "ImageViewer", "Batch flip LR completed")
     
     def batch_flip_ud(self):
-        """Apply flip up-down to all images."""
-        if self.current_batch is None or len(self.flipped_images) == 0:
-            self.show_status_message("No batch available to flip", color="red")
+        """Flip all images in the current batch up-down."""
+        if not self.npz_files or 'depths' not in self.current_batch:
             return
-        
-        # Apply to all images in batch
-        for i in range(len(self.flipped_images)):
-            # Flip the image
-            self.flipped_images[i] = np.flipud(self.flipped_images[i])
-            # Toggle flipud in the action list
-            self.toggle_flip_action(i, 'flipud')
-        
-        # Update the batch grid
-        self.update_batch_grid()
             
-        self.show_status_message("Applied up-down flip to all images")
+        logger.debug_at_level(DEBUG_L1, "ImageViewer", "Performing batch up-down flip")
+        depths = self.current_batch['depths']
+        
+        # Create a flipped copy
+        if self.flipped_images is None:
+            self.flipped_images = depths.copy()
+        
+        # Flip up-down (axis=1)
+        self.flipped_images = np.flip(self.flipped_images, axis=1)
+        
+        # Add flip action to every image's history
+        for i in range(len(depths)):
+            self.flip_actions[i].append('ud')
+        
+        # Update the display
+        self.show_status_message("Flipped all images up-down")
+        self.show_batch_grid()
+        
+        logger.debug_at_level(DEBUG_L2, "ImageViewer", "Batch flip UD completed")
     
     def toggle_flip_action(self, idx, action):
         """
@@ -607,9 +659,10 @@ class ImageViewer:
             fallback_label.pack(pady=20)
     
     def debug_print(self, message):
-        """Print debug messages if debug mode is enabled."""
+        """Print debug message if debug mode is enabled."""
         if self.debug_mode:
             print(f"DEBUG: {message}")
+        logger.debug_at_level(DEBUG_L3, "ImageViewer", message)
     
     #--- Event Handlers ---#
     
@@ -782,19 +835,26 @@ class ImageViewer:
 
 
 def main():
-    """Main entry point of the application."""
+    """Main function to start the application."""
+    logger.info("ImageViewer", "Starting Depth Image Viewer application")
+    
+    # Create root window
     root = tk.Tk()
-    root.title("Depth Dataset Viewer")
     
-    # Set a reasonable starting window size
-    root.geometry("950x750")
+    # Set window size (80% of screen)
+    width = root.winfo_screenwidth() * 0.8
+    height = root.winfo_screenheight() * 0.8
+    root.geometry(f"{int(width)}x{int(height)}")
     
-    # Create the application
+    # Initialize app
     app = ImageViewer(root)
     
-    # Start the main loop
+    logger.debug_at_level(DEBUG_L1, "ImageViewer", "Entering main event loop")
+    # Start main loop
     root.mainloop()
+    
+    logger.info("ImageViewer", "Depth Image Viewer application closed")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main() 

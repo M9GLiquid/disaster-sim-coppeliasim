@@ -1,8 +1,10 @@
 import math
 import random
 from Managers.Connections.sim_connection import SimConnection
+from Utils.log_utils import get_logger
 
 SC = SimConnection.get_instance()
+logger = get_logger()
 
 FLOOR_THICKNESS = 0.5
 
@@ -17,26 +19,34 @@ def does_object_exist_by_alias(alias):
     Returns:
         The object handle if found, None otherwise
     """
-    # Direct approach - if this fails, it will propagate the error
-    # which is preferable to silently failing
-    handles = SC.sim.getObjectsInTree(SC.sim.handle_scene, SC.sim.handle_all, 0)
-    
-    for h in handles:
-        # For each handle, check if it has the requested alias
-        if SC.sim.getObjectAlias(h) == alias:
-            return h
-    
-    # If we reach here, the object doesn't exist
-    return None
+    try:
+        # Direct approach - if this fails, it will propagate the error
+        # which is preferable to silently failing
+        handles = SC.sim.getObjectsInTree(SC.sim.handle_scene, SC.sim.handle_all, 0)
+        
+        for h in handles:
+            # For each handle, check if it has the requested alias
+            if SC.sim.getObjectAlias(h) == alias:
+                logger.debug_at_level(2, "TerrainElements", f"Found object with alias '{alias}'")
+                return h
+        
+        # If we reach here, the object doesn't exist
+        logger.debug_at_level(2, "TerrainElements", f"Object with alias '{alias}' not found")
+        return None
+    except Exception as e:
+        logger.error("TerrainElements", f"Error checking for object with alias '{alias}': {e}")
+        return None
 
 def create_floor(area_size):
     # Check for an existing floor
     existing = does_object_exist_by_alias('DisasterFloor')
     if existing is not None:
         # Remove the existing floor so we can create a new one with the updated size
+        logger.info("TerrainElements", "Removing existing floor")
         SC.sim.removeObject(existing)
         
     # Create a new floor with the specified size
+    logger.info("TerrainElements", f"Creating floor with size {area_size}x{area_size}")
     size = [area_size, area_size, FLOOR_THICKNESS]
     floor = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_cuboid, size, 0)
     # Floor is the only element that needs collision enabled
@@ -61,6 +71,9 @@ def create_tree(position, fallen=True, trunk_len=None, tilt_angle=0.0):
             trunk_len = (random.uniform(0.2, 0.5)
                          if random.random() < 0.1
                          else random.uniform(2.5, 4.5))
+
+    tree_type = "fallen" if fallen else "standing"
+    logger.debug_at_level(2, "TerrainElements", f"Creating {tree_type} tree at {position} with length {trunk_len:.2f}m")
 
     # 2) create cylinder
     trunk_rad = random.uniform(0.08, 0.12)
@@ -110,10 +123,13 @@ def create_tree(position, fallen=True, trunk_len=None, tilt_angle=0.0):
 
     SC.sim.setObjectPosition(trunk, -1, [x, y, z])
     SC.sim.setObjectOrientation(trunk, -1, [roll, pitch, yaw])
-    SC.sim.setObjectAlias(trunk, f"{'Fallen' if fallen else 'Standing'}Tree_{trunk}")
+    tree_alias = f"{'Fallen' if fallen else 'Standing'}Tree_{trunk}"
+    SC.sim.setObjectAlias(trunk, tree_alias)
+    logger.debug_at_level(2, "TerrainElements", f"Set tree orientation [roll={roll:.2f}, pitch={pitch:.2f}, yaw={yaw:.2f}]")
     
     # 5) Add realistic tree crown to standing trees (if not a stump)
     if not fallen and trunk_len > 0.6:  # Only add crown to taller trees
+        logger.debug_at_level(2, "TerrainElements", f"Adding crown to tree {tree_alias}")
         # Create a crown dummy as a container for all foliage elements
         crown_dummy = SC.sim.createDummy(0.05)
         SC.sim.setObjectAlias(crown_dummy, f"TreeCrownGroup_{trunk}")
@@ -153,6 +169,7 @@ def create_tree(position, fallen=True, trunk_len=None, tilt_angle=0.0):
                 [cluster_size, cluster_size, cluster_size * stretch],
                 0
             )
+            logger.debug_at_level(2, "TerrainElements", f"Created leaf cluster {i} with size {cluster_size:.2f}")
             
             # Vary the color slightly for each cluster
             color_variation = random.uniform(-0.05, 0.05)
@@ -185,6 +202,7 @@ def create_tree(position, fallen=True, trunk_len=None, tilt_angle=0.0):
                 [trunk_rad * 3, trunk_rad * 3, crown_width * 0.6],
                 0
             )
+            logger.debug_at_level(2, "TerrainElements", f"Added branch connector to tree {tree_alias}")
             SC.sim.setShapeColor(branch_connector, None, SC.sim.colorcomponent_ambient_diffuse, [0.3, 0.2, 0.1])  # darker brown
             
             # Position at the top of trunk, as a visual connection to the crown
@@ -192,10 +210,14 @@ def create_tree(position, fallen=True, trunk_len=None, tilt_angle=0.0):
             SC.sim.setObjectParent(branch_connector, trunk, True)
         
         tree_objects.append(crown_dummy)
+        logger.debug_at_level(2, "TerrainElements", f"Finished creating tree crown with {cluster_count} leaf clusters")
+    else:
+        logger.debug_at_level(2, "TerrainElements", f"Finished creating tree {tree_alias} without crown")
     
     return tree_objects[0]  # Return trunk for backward compatibility
 
 def create_rock(position, size):
+    logger.debug_at_level(2, "TerrainElements", f"Creating rock at {position} with size {size:.2f}")
     dims = [size, size, size * 0.8]
     rock = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_spheroid, dims, 0)
     # Disable collisions for rock
@@ -213,16 +235,17 @@ def create_rock(position, size):
         random.uniform(-math.pi, math.pi)
     ])
     SC.sim.setObjectAlias(rock, f"Rock_{rock}")
+    logger.debug_at_level(2, "TerrainElements", f"Finished creating rock at {position}")
     return rock
 
 def create_victim(position=(0, 0), size=(0.3, 0.1, 1.2)):
-    print(f"[DEBUG] create_victim called with position={position}")
+    logger.debug_at_level(2, "TerrainElements", f"create victim called with position={position}")
     # Prevent duplicate victim creation: search scene tree for object alias
     existing = does_object_exist_by_alias('Victim')
     if existing is not None:
-        print(f"[DEBUG] Found existing victim object with handle {existing}")
+        logger.debug_at_level(2, "TerrainElements", f"Found existing victim object with handle {existing}")
         existing_pos = SC.sim.getObjectPosition(existing, -1)
-        print(f"[DEBUG] Existing victim position: {existing_pos}")
+        logger.debug_at_level(2, "TerrainElements", f"Existing victim position: {existing_pos}")
         
         # MODIFIED: Instead of just returning, update the existing victim's position
         # Check if the existing victim is already positioned correctly
@@ -233,27 +256,27 @@ def create_victim(position=(0, 0), size=(0.3, 0.1, 1.2)):
         try:
             SC.sim.setObjectPosition(existing, -1, [x, y, z])
             new_pos = SC.sim.getObjectPosition(existing, -1)
-            print(f"[DEBUG] Updated existing victim position to {new_pos}")
+            logger.debug_at_level(2, "TerrainElements", f"Updated existing victim position to {new_pos}")
             
             # Try to reset the parent to -1 (scene root) to avoid hierarchy issues
             try:
                 # Only change parent if it's not already at the scene root
                 current_parent = SC.sim.getObjectParent(existing)
                 if current_parent != -1:
-                    print(f"[DEBUG] Removing existing victim from its current parent ({current_parent})")
+                    logger.debug_at_level(2, "TerrainElements", f"Removing existing victim from its current parent ({current_parent})")
                     SC.sim.setObjectParent(existing, -1, True)
             except Exception as e:
-                print(f"[DEBUG] Failed to reset victim parent: {e}")
+                logger.error("TerrainElements", f"Failed to reset victim parent: {e}")
                 
             # Make sure it's visible with proper color
             try:
                 SC.sim.setShapeColor(existing, None, SC.sim.colorcomponent_ambient_diffuse, [1.0, 1.0, 1.0])  # white
                 SC.sim.setShapeColor(existing, None, SC.sim.colorcomponent_emission, [0.5, 0.5, 0.5])  # stronger glow
             except Exception as e:
-                print(f"[DEBUG] Failed to update victim colors: {e}")
+                logger.error("TerrainElements", f"Failed to update victim colors: {e}")
                 
         except Exception as e:
-            print(f"[DEBUG] Failed to update victim position: {e}")
+            logger.error("TerrainElements", f"Failed to update victim position: {e}")
         
         return existing
         
@@ -261,7 +284,7 @@ def create_victim(position=(0, 0), size=(0.3, 0.1, 1.2)):
     radius = 0.5  # radius (0.5m)
     height = 0.05  # Height/thickness of the disc - reduced for better visibility
     victim = SC.sim.createPrimitiveShape(SC.sim.primitiveshape_disc, [radius, radius, height], 0)
-    print(f"[DEBUG] Created new victim object with handle {victim}")
+    logger.debug_at_level(2, "TerrainElements", f"Created new victim object with handle {victim}")
     SC.sim.setObjectAlias(victim, "Victim")
     # Disable collisions for victim
     SC.sim.setBoolProperty(victim, "collidable", False)
@@ -277,7 +300,7 @@ def create_victim(position=(0, 0), size=(0.3, 0.1, 1.2)):
     z = FLOOR_THICKNESS + 0.05  # 5cm above ground to avoid z-fighting
     SC.sim.setObjectPosition(victim, -1, [x, y, z])
     actual_pos = SC.sim.getObjectPosition(victim, -1)
-    print(f"[DEBUG] Set victim position to ({x}, {y}, {z}), actual position: {actual_pos}")
+    logger.debug_at_level(2, "TerrainElements", f"Set victim position to ({x}, {y}, {z}), actual position: {actual_pos}")
     SC.sim.setObjectOrientation(victim, -1, [0, 0, 0])  # flat on ground
 
     return victim
@@ -286,6 +309,8 @@ def create_ground_foliage(position, size_range=(0.05, 0.15)):
     """
     Create a small cluster of ground foliage (grass, small plants, etc.)
     """
+    logger.debug_at_level(2, "TerrainElements", f"Creating ground foliage at {position} with size range {size_range}")
+    
     # Randomize size within the provided range
     size = random.uniform(size_range[0], size_range[1])
     
@@ -307,10 +332,12 @@ def create_ground_foliage(position, size_range=(0.05, 0.15)):
             [1.0, 0.5, 0.0],  # Orange
         ]
         color = random.choice(colors)
+        logger.debug_at_level(2, "TerrainElements", f"Created flower foliage with color {color}")
     else:
         # Normal green vegetation with variation
         green_shade = random.uniform(0.25, 0.55)
         color = [0.05, green_shade, 0.05]
+        logger.debug_at_level(2, "TerrainElements", f"Created green foliage with shade {green_shade:.2f}")
     
     # Set the color
     SC.sim.setShapeColor(foliage, None, SC.sim.colorcomponent_ambient_diffuse, color)
@@ -338,6 +365,8 @@ def create_ground_foliage(position, size_range=(0.05, 0.15)):
     SC.sim.setBoolProperty(foliage, "respondable", False)
     SC.sim.setObjectAlias(foliage, f"GroundFoliage_{foliage}")
     
+    logger.debug_at_level(2, "TerrainElements", f"Finished creating ground foliage at {position}")
+    
     return foliage
 
 def create_bush(position, size_range=(0.3, 0.8)):
@@ -351,19 +380,23 @@ def create_bush(position, size_range=(0.3, 0.8)):
     Returns:
         bush_group: The main bush handle
     """
+    logger.debug_at_level(2, "TerrainElements", f"Creating bush at {position} with size range {size_range}")
+    
     # Create a group to contain the bush elements
     bush_group = SC.sim.createDummy(0.01)
     SC.sim.setObjectAlias(bush_group, f"BushGroup_{bush_group}")
     
     # Determine bush size
     bush_size = random.uniform(size_range[0], size_range[1])
+    logger.debug_at_level(2, "TerrainElements", f"Bush size: {bush_size:.2f}")
     
     # Position the bush group
     x, y = position
     SC.sim.setObjectPosition(bush_group, -1, [x, y, FLOOR_THICKNESS])
     
     # Determine how many foliage clusters to create
-    cluster_count = random.randint(3, 7)
+    cluster_count = random.randint(2, 7)
+    logger.debug_at_level(2, "TerrainElements", f"Creating bush with {cluster_count} foliage clusters")
     
     # Generate base color with some randomness
     base_r = 0.05 + random.uniform(0, 0.1)
@@ -379,6 +412,7 @@ def create_bush(position, size_range=(0.3, 0.8)):
             [trunk_radius*2, trunk_radius*2, trunk_height],
             0
         )
+        logger.debug_at_level(2, "TerrainElements", f"Added trunk to bush with height {trunk_height:.2f}")
         SC.sim.setShapeColor(trunk, None, SC.sim.colorcomponent_ambient_diffuse, [0.35, 0.25, 0.12])
         # Disable collisions for trunk
         SC.sim.setBoolProperty(trunk, "collidable", False)
@@ -448,4 +482,5 @@ def create_bush(position, size_range=(0.3, 0.8)):
         # Attach the foliage to the bush group
         SC.sim.setObjectParent(foliage, bush_group, True)
     
+    logger.debug_at_level(2, "TerrainElements", f"Finished creating bush at {position} with {cluster_count} clusters")
     return bush_group

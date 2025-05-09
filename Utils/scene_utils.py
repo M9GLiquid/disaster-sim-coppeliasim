@@ -9,10 +9,12 @@ from Managers.scene_manager import (
 )
 from Core.event_manager import EventManager
 from Managers.Connections.sim_connection import SimConnection
+from Utils.log_utils import get_logger
 
 # Get singleton instances
 SC = SimConnection.get_instance()
 EM = EventManager.get_instance()
+logger = get_logger()
 
 def restart_disaster_area(config=None):
     """
@@ -39,14 +41,14 @@ def setup_scene_event_handlers():
     
     def on_scene_cleared(_):
         """Handle scene cleared event"""
-        print("[SceneUtils] Scene cleared")
+        logger.info("SceneUtils", "Scene cleared")
     
     def on_scene_completed(objects):
         """Handle scene creation completed event"""
-        print(f"[SceneUtils] Scene creation completed with {len(objects)} objects")
+        logger.info("SceneUtils", f"Scene creation completed with {len(objects)} objects")
     
     # Subscribe to events
     EM.subscribe(SCENE_CLEARED, on_scene_cleared)
     EM.subscribe(SCENE_CREATION_COMPLETED, on_scene_completed)
     
-    print("[SceneUtils] Scene event handlers registered")
+    logger.info("SceneUtils", "Scene event handlers registered")

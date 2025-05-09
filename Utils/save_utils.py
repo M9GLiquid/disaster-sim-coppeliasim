@@ -2,6 +2,9 @@ import numpy as np
 import os
 
 from Utils.config_utils import get_default_config
+from Utils.log_utils import get_logger
+
+logger = get_logger()
 
 def save_batch_npz(folder, counter, batch_data):
     """
@@ -16,7 +19,7 @@ def save_batch_npz(folder, counter, batch_data):
         missing_keys = [key for key in required_keys if key not in batch_data]
         
         if missing_keys:
-            print(f"[SaveUtils] ERROR: Missing data keys: {missing_keys}")
+            logger.error("SaveUtils", f"Missing data keys: {missing_keys}")
             return False
             
         # Save the data
@@ -30,25 +33,27 @@ def save_batch_npz(folder, counter, batch_data):
             victim_dirs = batch_data['victim_dirs'],
         )
         
-        # Print summary statistics for debugging
+        # Log summary statistics
+        logger.info("SaveUtils", f"Saved batch to {filename}")
+        
+        # Print detailed statistics in verbose mode
         if verbose:
-            print(f"[SaveUtils] Saved batch to {filename}")
-            print(f"[SaveUtils] - Depths shape: {batch_data['depths'].shape}")
-            print(f"[SaveUtils] - Poses shape: {batch_data['poses'].shape}")
-            print(f"[SaveUtils] - Frames count: {len(batch_data['frames'])}")
-            print(f"[SaveUtils] - Actions count: {len(batch_data['actions'])}")
-            print(f"[SaveUtils] - Victim dirs shape: {batch_data['victim_dirs'].shape}")
+            logger.debug_at_level(1, "SaveUtils", f"Depths shape: {batch_data['depths'].shape}")
+            logger.debug_at_level(1, "SaveUtils", f"Poses shape: {batch_data['poses'].shape}")
+            logger.debug_at_level(1, "SaveUtils", f"Frames count: {len(batch_data['frames'])}")
+            logger.debug_at_level(1, "SaveUtils", f"Actions count: {len(batch_data['actions'])}")
+            logger.debug_at_level(1, "SaveUtils", f"Victim dirs shape: {batch_data['victim_dirs'].shape}")
         
         return True
         
     except Exception as e:
-        print(f"[SaveUtils] Error saving batch to {filename}: {e}")
+        logger.error("SaveUtils", f"Error saving batch to {filename}: {e}")
         # More detailed error diagnostics
         for key, value in batch_data.items():
             try:
                 shape_or_len = value.shape if hasattr(value, 'shape') else len(value)
                 if verbose:
-                    print(f"[SaveUtils] - {key}: type={type(value)}, shape/len={shape_or_len}")
-            except:
-                print(f"[SaveUtils] - {key}: Error getting shape/length")
+                    logger.debug_at_level(1, "SaveUtils", f"{key}: type={type(value)}, shape/len={shape_or_len}")
+            except Exception as detail_error:
+                logger.error("SaveUtils", f"Error getting shape/length for {key}: {detail_error}")
         return False

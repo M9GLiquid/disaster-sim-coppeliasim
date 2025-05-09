@@ -7,6 +7,7 @@ import math
 from Utils.capture_utils import capture_depth, capture_pose, capture_distance_to_victim
 from Utils.save_utils import save_batch_npz
 from Utils.config_utils import get_default_config
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
 from Managers.scene_manager import SCENE_CREATION_COMPLETED
 
 from Managers.Connections.sim_connection import SimConnection
@@ -14,6 +15,7 @@ from Core.event_manager import EventManager
 
 EM = EventManager.get_instance()
 SC = SimConnection.get_instance()
+logger = get_logger()
 
 # Dataset collection events
 DATASET_CAPTURE_REQUEST = 'dataset/capture/request'    # Request a data capture
@@ -68,10 +70,11 @@ def get_victim_direction():
         else:
             unit_vector = (dx / distance, dy / distance, dz / distance)
 
+        logger.debug_at_level(DEBUG_L3, "DepthCollector", f"Victim direction: {unit_vector}, distance: {distance}")
         return unit_vector, distance
         
     except Exception as e:
-        print(f"[DepthCollector] Error calculating victim direction: {e}")
+        logger.error("DepthCollector", f"Error calculating victim direction: {e}")
         return (0.0, 0.0, 0.0), -1.0  # Return zero vector and invalid distance on error
 
 class DepthDatasetCollector:
@@ -85,6 +88,12 @@ class DepthDatasetCollector:
         """
         # Verbose logging flag from configuration
         self.verbose = get_default_config().get('verbose', False)
+        
+        logger.info("DepthCollector", "Initializing depth dataset collector")
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", 
+                         f"Parameters: base_folder={base_folder}, batch_size={batch_size}, "
+                         f"save_every_n_frames={save_every_n_frames}")
+        
         # Listen for config updates
         EM.subscribe('config/updated', self._on_config_updated)
         self.sensor_handle = sensor_handle
@@ -107,6 +116,7 @@ class DepthDatasetCollector:
         self.test_folder  = os.path.join(base_folder, "test")
         for folder in [self.train_folder, self.val_folder, self.test_folder]:
             os.makedirs(folder, exist_ok=True)
+            logger.debug_at_level(DEBUG_L1, "DepthCollector", f"Created directory: {folder}")
 
         # Counters
         self.global_frame_counter = 0
@@ -124,6 +134,7 @@ class DepthDatasetCollector:
         self.save_queue = queue.Queue()
         self.saving_thread = threading.Thread(target=self._background_saver, daemon=True)
         self.saving_thread.start()
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", "Background saving thread started")
 
         # data capture activation flag
         self.active = False
@@ -137,6 +148,7 @@ class DepthDatasetCollector:
 
         # subscribe to simulation frame events for data capture
         EM.subscribe('simulation/frame', self._on_simulation_frame)
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", "Event subscriptions registered")
 
     def _on_scene_completed(self, _):
         """
@@ -144,8 +156,7 @@ class DepthDatasetCollector:
         """
         # Only activate once
         if not self.active:
-            if self.verbose:
-                print("[DepthCollector] Scene creation completed. Activating data capture.")
+            logger.info("DepthCollector", "Scene creation completed. Activating data capture.")
             self.active = True
 
     def capture(self):
@@ -162,6 +173,9 @@ class DepthDatasetCollector:
             return
         if self.global_frame_counter % self.save_every_n_frames != 0:
             return
+            
+        logger.debug_at_level(DEBUG_L2, "DepthCollector", f"Capturing data for frame {self.global_frame_counter}")
+        
         # perform capture
         depth_img = capture_depth(self.sensor_handle)
         pose     = capture_pose()
@@ -174,11 +188,11 @@ class DepthDatasetCollector:
             if unit_vec is None or dist is None:
                 # Default values if victim direction isn't available
                 victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance
+                logger.warning("DepthCollector", "Invalid victim direction values")
             else:
                 victim_vec = (*unit_vec, dist)
         except Exception as e:
-            if self.verbose:
-                print(f"[DepthCollector] Error getting victim direction: {e}")
+            logger.error("DepthCollector", f"Error getting victim direction: {e}")
             victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance
 
         self.depths.append(depth_img)
@@ -187,6 +201,9 @@ class DepthDatasetCollector:
         self.distances.append(distance)
         self.actions.append(self.last_action_label)
         self.victim_dirs.append(victim_vec)
+
+        logger.debug_at_level(DEBUG_L2, "DepthCollector", 
+                         f"Captured data - distance: {distance:.2f}, action: {self.last_action_label}")
 
         # publish capture complete event
         EM.publish(DATASET_CAPTURE_COMPLETE, {
@@ -198,98 +215,116 @@ class DepthDatasetCollector:
 
         # flush if batch full
         if len(self.depths) >= self.batch_size:
+            logger.info("DepthCollector", f"Batch size reached ({self.batch_size}), flushing buffer")
             self._flush_buffer()
 
     def shutdown(self):
-        if self.depths:
-            self._flush_buffer()
+        """Shutdown the data collector."""
+        logger.info("DepthCollector", "Shutting down depth dataset collector")
         self.shutdown_requested = True
-        self.saving_thread.join()
-        if self.verbose:
-            print("[DepthCollector] Shutdown complete, all data saved.")
+        if self.depths:
+            logger.debug_at_level(DEBUG_L1, "DepthCollector", f"Flushing remaining {len(self.depths)} samples")
+            self._flush_buffer()
+        if self.saving_thread.is_alive():
+            self.saving_thread.join(timeout=2.0)
+            logger.debug_at_level(DEBUG_L1, "DepthCollector", "Saving thread joined")
 
     def _safe_stack(self, name, arr_list, dtype=None):
+        """Safely stack arrays with error handling."""
         try:
-            return np.stack(arr_list)
+            if not arr_list:
+                logger.warning("DepthCollector", f"Empty list for {name}, skipping")
+                return None
+            return np.stack(arr_list) if dtype is None else np.stack(arr_list).astype(dtype)
         except Exception as e:
-            if self.verbose:
-                print(f"[DepthCollector] Warning: could not stack {name}: {e}")
-            # show individual shapes
-            try:
-                shapes = [np.shape(a) for a in arr_list]
-                if self.verbose:
-                    print(f"[DepthCollector] {name} element shapes: {shapes}")
-            except:
-                pass
-            return np.array(arr_list, dtype=dtype if dtype else object)
+            logger.error("DepthCollector", f"Error stacking {name}: {e}")
+            return None
 
     def _flush_buffer(self):
-        # Stack arrays safely with fallback
-        batch = {
-            'depths':      self._safe_stack('depths', self.depths),
-            'poses':       self._safe_stack('poses', self.poses),
-            'frames':      np.array(self.frames, dtype=np.int32),
-            'distances':   np.array(self.distances, dtype=np.float32),
-            'actions':     np.array(self.actions, dtype=np.int32),
-            'victim_dirs': self._safe_stack('victim_dirs', self.victim_dirs, dtype=np.float32)
-        }
-        self.save_queue.put(batch)
-        if self.verbose:
-            print(f"[DepthCollector] Queued batch with {len(self.depths)} frames for saving.")
+        """Flush data to disk."""
+        if not self.depths:
+            logger.debug_at_level(DEBUG_L1, "DepthCollector", "No data to flush")
+            return
 
-        self.depths.clear()
-        self.poses.clear()
-        self.frames.clear()
-        self.distances.clear()
-        self.actions.clear()
-        self.victim_dirs.clear()
+        # Stack arrays safely with fallback
+        logger.debug_at_level(DEBUG_L2, "DepthCollector", f"Stacking arrays for {len(self.depths)} samples")
+        batch = {
+            'depths': self._safe_stack('depths', self.depths, np.float32),
+            'poses': self._safe_stack('poses', self.poses, np.float32),
+            'frames': self._safe_stack('frames', self.frames, np.int32),
+            'distances': self._safe_stack('distances', self.distances, np.float32),
+            'actions': self._safe_stack('actions', self.actions, np.int32),
+            'victim_dirs': self._safe_stack('victim_dirs', self.victim_dirs, np.float32)
+        }
+
+        # Put in save queue and clear buffers
+        if all(v is not None for v in batch.values()):
+            self.save_queue.put(batch)
+            logger.debug_at_level(DEBUG_L1, "DepthCollector", "Batch queued for saving")
+            self.depths, self.poses, self.frames = [], [], []
+            self.distances, self.actions, self.victim_dirs = [], [], []
+        else:
+            logger.error("DepthCollector", "Failed to create batch, some arrays could not be stacked")
 
     def _background_saver(self):
+        """Background thread that saves batches from the queue."""
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", "Background saver thread started")
         while not self.shutdown_requested or not self.save_queue.empty():
             try:
-                batch = self.save_queue.get(timeout=0.1)
+                batch = self.save_queue.get(block=True, timeout=0.5)
                 self._save_batch(batch)
+                self.save_queue.task_done()
             except queue.Empty:
-                continue
+                pass
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", "Background saver thread finished")
 
     def _save_batch(self, batch):
-        folder, counter = self._select_split()
-        success = save_batch_npz(folder, counter, batch)
-        if success:
-            EM.publish(DATASET_BATCH_SAVED, {'folder': folder, 'counter': counter})
-        else:
-            EM.publish(DATASET_BATCH_ERROR, {'folder': folder, 'counter': counter})
-        if folder == self.train_folder:
-            self.train_counter += 1
-        elif folder == self.val_folder:
-            self.val_counter   += 1
-        else:
-            self.test_counter  += 1
+        """Save a batch of data to the appropriate split directory."""
+        split = self._select_split()
+        folder = getattr(self, f"{split}_folder")
+        counter = getattr(self, f"{split}_counter")
+        
+        try:
+            # Fix the call to save_batch_npz with the correct parameters
+            save_batch_npz(folder, counter, batch)
+            setattr(self, f"{split}_counter", counter + 1)
+            logger.info("DepthCollector", f"Saved {split} batch #{counter} with {len(batch['frames'])} samples")
+            
+            # Publish success event
+            EM.publish(DATASET_BATCH_SAVED, {'split': split, 'batch': counter, 'samples': len(batch['frames'])})
+        except Exception as e:
+            logger.error("DepthCollector", f"Error saving batch: {e}")
+            EM.publish(DATASET_BATCH_ERROR, {'error': str(e)})
 
     def _select_split(self):
-        rnd = np.random.rand()
-        if rnd < self.train_ratio:
-            return self.train_folder, self.train_counter
-        elif rnd < self.train_ratio + self.val_ratio:
-            return self.val_folder,   self.val_counter
+        """Randomly select a split based on the specified ratios."""
+        r = np.random.random()
+        if r < self.train_ratio:
+            return "train"
+        elif r < self.train_ratio + self.val_ratio:
+            return "val"
         else:
-            return self.test_folder,  self.test_counter
+            return "test"
 
     def _on_move(self, delta):
+        """Handle move events to track the current action."""
         dx, dy, dz = delta
-        if dy > 0:       self.last_action_label = 0  # forward
-        elif dy < 0:     self.last_action_label = 1  # backward
-        elif dx < 0:     self.last_action_label = 2  # left
-        elif dx > 0:     self.last_action_label = 3  # right
-        elif dz > 0:     self.last_action_label = 4  # up
-        elif dz < 0:     self.last_action_label = 5  # down
+        # Update action label based on movement
+        if dx > 0: self.last_action_label = 0  # Right
+        elif dx < 0: self.last_action_label = 1  # Left
+        elif dy > 0: self.last_action_label = 2  # Forward
+        elif dy < 0: self.last_action_label = 3  # Backward
+        elif dz > 0: self.last_action_label = 4  # Up
+        elif dz < 0: self.last_action_label = 5  # Down
+        logger.debug_at_level(DEBUG_L3, "DepthCollector", f"Move action updated: {self.last_action_label}")
 
     def _on_rotate(self, delta):
-        if delta > 0:    self.last_action_label = 6  # rotate left
-        elif delta < 0:  self.last_action_label = 7  # rotate right
+        """Handle rotation events to track the current action."""
+        self.last_action_label = 6 if delta > 0 else 7  # 6=turn left, 7=turn right
+        logger.debug_at_level(DEBUG_L3, "DepthCollector", f"Rotate action updated: {self.last_action_label}")
 
     def _on_config_updated(self, _):
-        # Update verbose flag when configuration changes
-        self.verbose = get_default_config().get('verbose', False)
-        # publish dataset config updated
-        EM.publish(DATASET_CONFIG_UPDATED, {'verbose': self.verbose})
+        """Update configuration settings."""
+        config = get_default_config()
+        self.verbose = config.get('verbose', False)
+        logger.debug_at_level(DEBUG_L1, "DepthCollector", f"Configuration updated, verbose: {self.verbose}")

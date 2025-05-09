@@ -1,3 +1,71 @@
+## [Unreleased]
+
+## [V.1.2.0] - 2023-05-17
+
+### Added
+- Added command-line argument support for verbose mode (`--verbose`)
+- Added semi-transparent popup notification system for configuration changes
+- Added temporary visual feedback when settings are changed
+- Added automatic window resizing when switching to Status tab
+- Added comprehensive verbose logging for important system events
+- Added centralized logging system with file output support
+- Added command-line options for log level control and file logging
+- Added log directory configuration option
+- Added detailed debug level guidelines in log_utils.py to standardize logging across modules
+
+### Improved
+- Improved configuration UI with instant-apply settings that update immediately
+- Improved Status tab with larger radar display for better victim visualization
+- Improved verbose output to focus on important system events while reducing noise
+- Improved scene manager error reporting and status updates
+- Improved error handling with centralized logging facility
+- Improved debugging capability with optional file-based logging
+- Improved shutdown sequence with proper logger cleanup
+- Improved lock acquisition/release logging in lock_utils.py
+
+### Changed
+- Changed default verbose setting to false for cleaner standard output
+- Changed console output to use structured logging format
+- Changed print statements to use centralized logger throughout codebase
+- Changed debug levels in terrain_elements.py for consistency with logging guidelines
+
+### Fixed
+- Fixed verbose flag behavior to properly enable/disable based on command-line argument
+- Fixed configuration UI showing notifications when field loses focus but value hasn't changed
+- Fixed "invalid command name" error during shutdown when UI callbacks are triggered after window closure
+- Fixed incomplete event unsubscription that could cause memory leaks and errors
+- Fixed inconsistent debug logging levels in Utils folder for better log clarity
+
+### Removed
+- Removed redundant "Apply All Changes" button from configuration UI
+- Removed unnecessary print statements replaced with appropriate logger calls
+
+## [V.1.1.2] - 2023-07-25
+
+### Added
+- Added enhanced configuration UI with grouped settings
+- Added tooltips for all configuration options
+- Added "Reset to Defaults" button in config UI
+- Added missing configurations:
+  - `dataset_capture_frequency` - Controls data capture frequency
+  - `victim_detection_threshold` - Sets threshold for victim detection alarms
+  - `clear_zone_center` - Center point for clear zone
+  - `drone_height` - Initial drone height
+
+### Changed
+- Reorganized configuration system to use categorical groups
+- Improved validation and error handling for configuration inputs
+- Enhanced visual feedback for configuration changes using status bar
+- Improved command-line config menu with grouped categories
+
+### Fixed
+- Fixed coordinate tuple parsing for clear_zone_center
+- Fixed type validation for configuration values
+- Improved error messages for invalid configuration inputs
+- Fixed teleportation error related to getObjectPropertiesInfo method
+- Fixed batch_size not being updated when changed through configuration UI
+- Fixed object inclusion settings not being respected (include_rocks, include_standing_trees, etc.)
+
 ## [V.1.1.1] - 2023-07-24
 
 ### Added

@@ -17,6 +17,11 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 from PIL import Image, ImageTk
 
+# Add better logging
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
+
+# Initialize logger
+logger = get_logger()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Orientation Validator')
@@ -27,10 +32,13 @@ def parse_args():
 
 
 def select_sample(npz_dir, sample_file):
+    logger.debug_at_level(DEBUG_L1, "Validator", f"Selecting sample from directory: {npz_dir}, requested file: {sample_file}")
     if sample_file:
         if not os.path.isfile(sample_file):
+            logger.error("Validator", f"Sample file {sample_file} not found")
             print(f"Sample file {sample_file} not found", file=sys.stderr)
             sys.exit(1)
+        logger.debug_at_level(DEBUG_L1, "Validator", f"Using provided sample file: {sample_file}")
         return sample_file
     files = []
     for root, _, names in os.walk(npz_dir):
@@ -38,16 +46,28 @@ def select_sample(npz_dir, sample_file):
             if name.lower().endswith('.npz'):
                 files.append(os.path.join(root, name))
     if not files:
+        logger.error("Validator", f"No .npz files found in {npz_dir}")
         print(f"No .npz files found in {npz_dir}", file=sys.stderr)
         sys.exit(1)
-    return random.choice(files)
+    chosen_file = random.choice(files)
+    logger.debug_at_level(DEBUG_L1, "Validator", f"Randomly selected file: {chosen_file}")
+    return chosen_file
 
 
 def load_npz(path):
-    return np.load(path, allow_pickle=True)
+    logger.debug_at_level(DEBUG_L2, "Validator", f"Loading NPZ file: {path}")
+    try:
+        data = np.load(path, allow_pickle=True)
+        logger.debug_at_level(DEBUG_L2, "Validator", f"Loaded NPZ with keys: {list(data.keys())}")
+        return data
+    except Exception as e:
+        logger.error("Validator", f"Error loading NPZ file {path}: {e}")
+        print(f"Error loading NPZ file: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def prepare_image(arr):
+    logger.debug_at_level(DEBUG_L2, "Validator", f"Preparing image from array with shape: {arr.shape}, dtype: {arr.dtype}")
     # scale to uint8 and convert to PIL Image
     if arr.ndim == 2:
         a = arr
@@ -57,6 +77,7 @@ def prepare_image(arr):
         a = arr.squeeze()
     if a.dtype != np.uint8:
         minv, maxv = np.nanmin(a), np.nanmax(a)
+        logger.debug_at_level(DEBUG_L3, "Validator", f"Scaling image with min: {minv}, max: {maxv}")
         if maxv > minv:
             a = ((a - minv) / (maxv - minv) * 255).astype(np.uint8)
         else:
@@ -68,11 +89,13 @@ def prepare_image(arr):
             img = Image.fromarray(a[:,:,0], mode='L')
         else:
             img = Image.fromarray(a, mode='RGB')
+    logger.debug_at_level(DEBUG_L2, "Validator", f"Created PIL image with size: {img.size}, mode: {img.mode}")
     return img
 
 
 class ValidatorApp:
     def __init__(self, root, pil_img, metadata_str, dataset_dir, out_dir, sample_file):
+        logger.debug_at_level(DEBUG_L1, "Validator", "Initializing validator UI")
         self.root = root
         self.choice = 'none'
         self.dataset_dir = dataset_dir
@@ -94,17 +117,21 @@ class ValidatorApp:
         tk.Button(btn_frame, text='Accept', command=self.accept).pack(side=tk.LEFT, padx=5, pady=5)
         tk.Button(btn_frame, text='Flip Left–Right', command=self.flip_lr).pack(side=tk.LEFT, padx=5, pady=5)
         tk.Button(btn_frame, text='Flip Up–Down', command=self.flip_ud).pack(side=tk.LEFT, padx=5, pady=5)
+        logger.debug_at_level(DEBUG_L1, "Validator", "UI initialization complete")
 
     def accept(self):
+        logger.debug_at_level(DEBUG_L1, "Validator", "User accepted image orientation")
         self.root.destroy()
 
     def flip_lr(self):
+        logger.debug_at_level(DEBUG_L1, "Validator", "User selected flip left-right")
         self.choice = 'fliplr'
         self.pil_img = self.pil_img.transpose(Image.FLIP_LEFT_RIGHT)
         self.photo = ImageTk.PhotoImage(self.pil_img)
         self.label.config(image=self.photo)
 
     def flip_ud(self):
+        logger.debug_at_level(DEBUG_L1, "Validator", "User selected flip up-down")
         self.choice = 'flipud'
         self.pil_img = self.pil_img.transpose(Image.FLIP_TOP_BOTTOM)
         self.photo = ImageTk.PhotoImage(self.pil_img)
@@ -112,29 +139,45 @@ class ValidatorApp:
 
 
 def main():
+    logger.info("Validator", "Starting Validator tool")
     args = parse_args()
+    logger.debug_at_level(DEBUG_L1, "Validator", f"Arguments: dir={args.dir}, out={args.out}, file={args.file or 'None'}")
+    
     sample = select_sample(args.dir, args.file)
     data = load_npz(sample)
     if 'depths' not in data:
+        logger.error("Validator", f"Key 'depths' not found in {sample}. Available: {list(data.keys())}")
         print(f"Key 'depths' not found in {sample}. Available: {list(data.keys())}", file=sys.stderr)
         sys.exit(1)
     arr = data['depths']
     if arr.ndim == 3:
+        logger.debug_at_level(DEBUG_L2, "Validator", f"Using first image from batch of {arr.shape[0]}")
         arr = arr[0]  # Show the first image in the batch
+    
     metadata_lines = [f"{k}: shape={v.shape}, dtype={v.dtype}" for k, v in data.items()]
     metadata = 'Metadata:\n' + '\n'.join(metadata_lines)
+    logger.debug_at_level(DEBUG_L2, "Validator", f"Metadata: {metadata}")
+    
     pil_img = prepare_image(arr)
     root = tk.Tk()
     root.title('Orientation Validator')
     app = ValidatorApp(root, pil_img, metadata, args.dir, args.out, sample)
+    logger.debug_at_level(DEBUG_L1, "Validator", "Starting UI main loop")
     root.mainloop()
+    
     # after window closes, if flip selected, run flip tool
     if app.choice in ('fliplr', 'flipud'):
+        logger.info("Validator", f"User selected {app.choice}, running flip tool")
         script = os.path.join(os.path.dirname(__file__), 'flip.py')
+        logger.debug_at_level(DEBUG_L1, "Validator", f"Executing: {sys.executable} {script} --dir {args.dir} --flip {app.choice} --out {args.out}")
         subprocess.run([sys.executable, script,
                         '--dir', args.dir,
                         '--flip', app.choice,
                         '--out', args.out], check=True)
+    else:
+        logger.info("Validator", "User accepted images, no flipping needed")
+    
+    logger.info("Validator", "Validator tool completed")
     sys.exit(0)
 
 

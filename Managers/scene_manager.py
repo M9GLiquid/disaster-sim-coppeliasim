@@ -76,57 +76,99 @@ class SceneManager:
         """Generate all the object creation tasks based on config"""
         area_size = self.config.get("area_size", 10.0)
         
-        # Add floor task
+        # Add floor task (always included)
         self.creation_tasks.append(('floor', {
             'area_size': area_size
         }))
         
-        # Add rocks
-        num_rocks = self.config.get("num_rocks", 0)
-        for _ in range(num_rocks):
-            x = random.uniform(-area_size/2, area_size/2)
-            y = random.uniform(-area_size/2, area_size/2)
-            size = random.uniform(0.3, 0.7)
-            self.creation_tasks.append(('rock', {
-                'position': (x, y),
-                'size': size
-            }))
+        # Add rocks if enabled
+        if self.config.get("include_rocks", True):
+            num_rocks = self.config.get("num_rocks", 0)
+            if self.verbose:
+                print(f"[SceneManager] Including {num_rocks} rocks")
+            for _ in range(num_rocks):
+                x = random.uniform(-area_size/2, area_size/2)
+                y = random.uniform(-area_size/2, area_size/2)
+                size = random.uniform(0.3, 0.7)
+                self.creation_tasks.append(('rock', {
+                    'position': (x, y),
+                    'size': size
+                }))
+        elif self.verbose:
+            print("[SceneManager] Rocks disabled in configuration")
         
         # Add trees
         num_trees = self.config.get("num_trees", 0)
         fraction_standing = self.config.get("fraction_standing", 0.7)
         num_standing = int(num_trees * fraction_standing)
+        num_fallen = num_trees - num_standing
         
-        for i in range(num_trees):
-            x = random.uniform(-area_size/2, area_size/2)
-            y = random.uniform(-area_size/2, area_size/2)
-            fallen = (i >= num_standing)
-            trunk_len = None  # Let the create_tree function determine based on fallen status
-            self.creation_tasks.append(('tree', {
-                'position': (x, y),
-                'fallen': fallen,
-                'trunk_len': trunk_len
-            }))
+        # Track how many trees of each type we'll create
+        include_standing = self.config.get("include_standing_trees", True)
+        include_fallen = self.config.get("include_fallen_trees", True)
         
-        # Add bushes
-        num_bushes = self.config.get("num_bushes", 0)
-        for _ in range(num_bushes):
-            x = random.uniform(-area_size/2, area_size/2)
-            y = random.uniform(-area_size/2, area_size/2)
-            self.creation_tasks.append(('bush', {
-                'position': (x, y)
-            }))
+        if self.verbose:
+            tree_status = []
+            if include_standing:
+                tree_status.append(f"{num_standing} standing")
+            if include_fallen:
+                tree_status.append(f"{num_fallen} fallen")
+            if tree_status:
+                print(f"[SceneManager] Including trees: {', '.join(tree_status)}")
+            else:
+                print("[SceneManager] All trees disabled in configuration")
         
-        # Add ground foliage
-        num_foliage = self.config.get("num_foliage", 0)
-        for _ in range(num_foliage):
-            x = random.uniform(-area_size/2, area_size/2)
-            y = random.uniform(-area_size/2, area_size/2)
-            self.creation_tasks.append(('ground_foliage', {
-                'position': (x, y)
-            }))
+        # Create standing trees if enabled
+        if include_standing:
+            for i in range(num_standing):
+                x = random.uniform(-area_size/2, area_size/2)
+                y = random.uniform(-area_size/2, area_size/2)
+                self.creation_tasks.append(('tree', {
+                    'position': (x, y),
+                    'fallen': False,
+                    'trunk_len': None
+                }))
         
-        # Add victim (always last)
+        # Create fallen trees if enabled
+        if include_fallen:
+            for i in range(num_fallen):
+                x = random.uniform(-area_size/2, area_size/2)
+                y = random.uniform(-area_size/2, area_size/2)
+                self.creation_tasks.append(('tree', {
+                    'position': (x, y),
+                    'fallen': True,
+                    'trunk_len': None
+                }))
+        
+        # Add bushes if enabled
+        if self.config.get("include_bushes", True):
+            num_bushes = self.config.get("num_bushes", 0)
+            if self.verbose:
+                print(f"[SceneManager] Including {num_bushes} bushes")
+            for _ in range(num_bushes):
+                x = random.uniform(-area_size/2, area_size/2)
+                y = random.uniform(-area_size/2, area_size/2)
+                self.creation_tasks.append(('bush', {
+                    'position': (x, y)
+                }))
+        elif self.verbose:
+            print("[SceneManager] Bushes disabled in configuration")
+        
+        # Add ground foliage if enabled
+        if self.config.get("include_foliage", True):
+            num_foliage = self.config.get("num_foliage", 0)
+            if self.verbose:
+                print(f"[SceneManager] Including {num_foliage} foliage clusters")
+            for _ in range(num_foliage):
+                x = random.uniform(-area_size/2, area_size/2)
+                y = random.uniform(-area_size/2, area_size/2)
+                self.creation_tasks.append(('ground_foliage', {
+                    'position': (x, y)
+                }))
+        elif self.verbose:
+            print("[SceneManager] Ground foliage disabled in configuration")
+        
+        # Add victim (always included - necessary for functionality)
         # Calculate the drone's position at the edge of the area
         drone_x = area_size * 0.45
         drone_y = area_size * 0.45
@@ -141,7 +183,8 @@ class SceneManager:
         max_attempts = 100  # Prevent infinite loops
         found_valid_position = False
         
-        print(f"[SceneManager] Looking for victim position at least {min_distance}m from drone at ({drone_x:.2f}, {drone_y:.2f})")
+        if self.verbose:
+            print(f"[SceneManager] Looking for victim position at least {min_distance}m from drone at ({drone_x:.2f}, {drone_y:.2f})")
         
         for attempt in range(max_attempts):
             # Generate a random position with margin from area edge
@@ -157,27 +200,34 @@ class SceneManager:
                 victim_x = x
                 victim_y = y
                 found_valid_position = True
-                print(f"[SceneManager] Found valid victim position at ({victim_x:.2f}, {victim_y:.2f}), " 
-                      f"{distance_to_drone:.2f}m from drone starting position (attempt {attempt+1})")
+                if self.verbose:
+                    print(f"[SceneManager] Found valid victim position at ({victim_x:.2f}, {victim_y:.2f}), " 
+                        f"{distance_to_drone:.2f}m from drone starting position (attempt {attempt+1})")
                 break
             
-            if (attempt + 1) % 10 == 0:
+            if self.verbose and (attempt + 1) % 10 == 0:
                 print(f"[SceneManager] Still searching for valid victim position... (attempt {attempt+1})")
         
-        if not found_valid_position:
+        if not found_valid_position and self.verbose:
             print(f"[SceneManager] WARNING: Could not find valid victim position after {max_attempts} attempts. "
                   f"Using position ({victim_x:.2f}, {victim_y:.2f})")
         
         # Add the victim task with the validated position
-        print(f"[SceneManager] Adding victim creation task with position ({victim_x:.2f}, {victim_y:.2f})")
+        if self.verbose:
+            print(f"[SceneManager] Adding victim creation task with position ({victim_x:.2f}, {victim_y:.2f})")
         self.creation_tasks.append(('victim', {
             'position': (victim_x, victim_y)
         }))
         
         self.total_objects = len(self.creation_tasks)
-        
+        if self.verbose:
+            print(f"[SceneManager] Generated {self.total_objects} creation tasks")
+    
     def _teleport_quadcopter_to_edge(self):
         """Teleport the quadcopter to the edge of the area (if it exists)"""
+        if self.verbose:
+            print("[SceneManager] Attempting to teleport quadcopter to edge of area")
+            
         try:
             # Get quadcopter and target handles
             quadcopter = SC.sim.getObject('/Quadcopter')
@@ -204,19 +254,12 @@ class SceneManager:
             SC.sim.setObjectOrientation(quadcopter, -1, [0, 0, angle_to_center])
             SC.sim.setObjectOrientation(target, -1, [0, 0, angle_to_center])
             
-            # Try to set properties only if supported
+            # Try to set properties with safe error handling
             try:
-                # Check if properties exist before setting them
-                properties = SC.sim.getObjectPropertiesInfo(target)
-                if "depthInvisible" in properties:
-                    SC.sim.setBoolProperty(target, "depthInvisible", True)
-                elif self.verbose:
-                    print("[Teleport] Note: 'depthInvisible' property not available for target object")
-                    
-                if "visible" in properties:
-                    SC.sim.setBoolProperty(target, "visible", False)
-                elif self.verbose:
-                    print("[Teleport] Note: 'visible' property not available for target object")
+                # Try setting properties directly and catch specific property errors
+                # instead of trying to check properties info first
+                SC.sim.setBoolProperty(target, "depthInvisible", True)
+                SC.sim.setBoolProperty(target, "visible", False)
             except Exception as prop_error:
                 # Only log if verbose since these properties are not critical
                 if self.verbose:
@@ -263,6 +306,9 @@ class SceneManager:
         self.completed_objects = 0
         self.objects = []
         
+        if self.verbose:
+            print("[SceneManager] Beginning scene creation process")
+        
         # Try to teleport quadcopter if it exists
         self._teleport_quadcopter_to_edge()
         
@@ -285,6 +331,11 @@ class SceneManager:
         
         # Process a small batch (3-5 objects at a time)
         batch_size = min(3, len(self.creation_tasks))
+        
+        if self.verbose:
+            remaining = len(self.creation_tasks)
+            print(f"[SceneManager] Processing batch of {batch_size} objects ({remaining} remaining)")
+            
         for _ in range(batch_size):
             if not self.creation_tasks:
                 break
@@ -306,9 +357,6 @@ class SceneManager:
                 'completed_objects': self.completed_objects,
                 'total_objects': self.total_objects
             })
-            
-            if self.verbose:
-                print(f"[SceneManager] Created {self.completed_objects}/{self.total_objects} objects ({obj_type})")
         
         # Check if we're done
         if not self.creation_tasks:
@@ -332,18 +380,30 @@ class SceneManager:
     def _handle_creation_canceled(self, _):
         """Handle the scene creation cancel event"""
         if self.is_creating:
+            if self.verbose:
+                print("[SceneManager] Scene creation canceled by user request")
+                
             self.is_creating = False
             self.creation_tasks = []
-            if self.verbose:
-                print("[SceneManager] Scene creation canceled")
+            EM.publish(SCENE_CREATION_CANCELED, None)
     
     def _handle_clear(self, _):
         """Handle the scene clear event"""
-        self._clear_scene()
-        EM.publish(SCENE_CLEARED, None)
+        if self.verbose:
+            print("[SceneManager] Clearing scene")
+            
+        success = self._clear_scene()
+        
+        if self.verbose:
+            print(f"[SceneManager] Scene clearing {'succeeded' if success else 'failed'}")
+            
+        EM.publish(SCENE_CLEARED, success)
     
     def _handle_restart(self, config):
         """Handle the scene restart event"""
+        if self.verbose:
+            print("[SceneManager] Restarting scene")
+            
         # First clear the scene
         self._clear_scene()
         
@@ -352,6 +412,9 @@ class SceneManager:
             from Utils.config_utils import get_default_config
             config = get_default_config()
         
+        # Update verbose setting
+        self.verbose = config.get('verbose', False)
+        
         # Then start a new scene creation
         EM.publish(SCENE_START_CREATION, config)
     
@@ -359,6 +422,9 @@ class SceneManager:
         """Clear the scene - internal implementation"""
         # Cancel any ongoing creation
         if self.is_creating:
+            if self.verbose:
+                print("[SceneManager] Canceling ongoing scene creation before clearing")
+                
             self.is_creating = False
             self.creation_tasks = []
         
@@ -366,11 +432,15 @@ class SceneManager:
         try:
             existing_scene = does_object_exist_by_alias("SceneElements")
             if existing_scene is not None:
-                SC.sim.removeObject(existing_scene)
                 if self.verbose:
-                    print("[SceneManager] Removed scene elements dummy")
+                    print("[SceneManager] Removing scene elements dummy")
+                    
+                SC.sim.removeObject(existing_scene)
             else:
                 # Check if there are any objects with scene-related names
+                if self.verbose:
+                    print("[SceneManager] Main scene dummy not found, checking for category dummies")
+                    
                 try:
                     for category in ["Floor", "Rocks", "Trees", "Bushes", "Foliage", "Victim"]:
                         obj = does_object_exist_by_alias(category)
@@ -379,10 +449,10 @@ class SceneManager:
                             if self.verbose:
                                 print(f"[SceneManager] Removed {category} dummy")
                 except Exception as e:
-                    if self.verbose:
-                        print(f"[SceneManager] Error during extended clearing: {e}")
+                    print(f"[SceneManager] Error during extended clearing: {e}")
         except Exception as e:
             print(f"[SceneManager] Error while clearing scene: {e}")
+            return False
         
         # Reset all state
         self.scene_dummy = None
@@ -390,7 +460,7 @@ class SceneManager:
         self.objects = []
         
         if self.verbose:
-            print("[SceneManager] Scene cleared")
+            print("[SceneManager] Scene cleared successfully")
             
         return True
     
