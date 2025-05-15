@@ -1,4 +1,12 @@
-## [Unreleased]
+## [V.1.2.1] - 2023-09-20
+
+### Added
+- Added detailed comments to the notebook code for better documentation
+- Added comprehensive function and class docstrings for improved code readability
+
+### Changed
+- Moved the notebook from root directory to Notebooks/ folder for better project organization 
+- Updated .gitignore to ignore all notebook files
 
 ## [V.1.2.0] - 2023-05-17
 
