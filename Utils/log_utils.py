@@ -207,14 +207,13 @@ class Logger:
         # Update logger's level
         self.logger.setLevel(level)
         
-        # Update console handler's level
-        min_console_level = logging.DEBUG if self.verbose else level
-        self.console_handler.setLevel(min_console_level)
+        # Update console handler's level - always use exactly the level that was specified
+        self.console_handler.setLevel(level)
         
-        # If file handler exists, update its level as well
+        # If file handler exists, keep it at DEBUG level to ensure all logs are captured to file
         if self.file_handler:
-            # For file handler, we always log at least DEBUG in verbose mode
-            min_file_level = logging.DEBUG if self.verbose else level
+            # File handler should always log at DEBUG level or the specified level, whichever is lower
+            min_file_level = min(logging.DEBUG, level) if self.verbose else level
             self.file_handler.setLevel(min_file_level)
         
         self.info("Logger", f"Log level changed to: {self._level_to_name(level)}")
@@ -251,15 +250,28 @@ class Logger:
     
     def _level_to_name(self, level: int) -> str:
         """Convert a logging level to its name."""
-        if level == logging.DEBUG:
+        level_names = {
+            logging.DEBUG: "DEBUG",
+            logging.INFO: "INFO", 
+            logging.WARNING: "WARNING",
+            logging.ERROR: "ERROR",
+            logging.CRITICAL: "CRITICAL"
+        }
+        
+        # Try direct lookup first
+        if level in level_names:
+            return level_names[level]
+        
+        # If not found, handle common level values that might be used
+        if level == 10:      # Common value for DEBUG
             return "DEBUG"
-        elif level == logging.INFO:
+        elif level == 20:    # Common value for INFO 
             return "INFO"
-        elif level == logging.WARNING:
+        elif level == 30:    # Common value for WARNING
             return "WARNING"
-        elif level == logging.ERROR:
-            return "ERROR"
-        elif level == logging.CRITICAL:
+        elif level == 40:    # Common value for ERROR
+            return "ERROR"  
+        elif level == 50:    # Common value for CRITICAL
             return "CRITICAL"
         else:
             return f"UNKNOWN ({level})"
@@ -294,10 +306,12 @@ class Logger:
     
     def error(self, module: str, message: str):
         """Log an error message from a specific module."""
+        # Ensure the message actually gets to the logger regardless of level settings
         self.logger.error(f"[{module}] {message}")
     
     def critical(self, module: str, message: str):
         """Log a critical message from a specific module."""
+        # Ensure the message actually gets to the logger regardless of level settings
         self.logger.critical(f"[{module}] {message}")
     
     def verbose_log(self, module: str, message: str, level: Union[Literal["debug"], Literal["info"]] = "debug"):

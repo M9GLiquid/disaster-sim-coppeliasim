@@ -1,10 +1,33 @@
-# Disaster Simulation with Drone Navigation (CoppeliaSim Project)
+<p align="center">
+  <a href="https://i.imghippo.com/files/snk6965sI.png">
+    <img src="https://i.imghippo.com/files/snk6965sI.png" alt="Disaster Sim Logo" width="250"/>
+  </a>
+</p>
+
+<h1 align="center">Disaster Simulation with Drone Navigation</h1>
+<p align="center"><em>(CoppeliaSim Project)</em></p>
 
 ## Overview
 
 This project simulates a disaster-struck area filled with fallen trees, rocks, and other obstacles, using CoppeliaSim. 
 A quadcopter (drone) equipped with an RGB-D camera navigates the area. 
 The system supports manual control, dataset collection for AI training, and dynamic environment generation.
+
+---
+
+## Quick Start
+
+```bash
+# Clone the repository
+gh repo clone Jakub-Espandr/disaster-sim-coppeliasim
+# Move to directory
+cd disaster-sim-coppeliasim
+# Install dependencies
+pip install -r requirements.txt
+# Launch CoppeliaSim with your quadcopter scene
+# Then run:
+python main.py
+```
 
 ---
 
@@ -17,6 +40,7 @@ The system supports manual control, dataset collection for AI training, and dyna
 - 🧠 **Event-driven depth dataset collection** Depth images for machine learning, triggered by simulation events
 - 🎮 **Interactive control menus** for creating, clearing, restarting scenes
 - 📊 **Status tab with victim detection visualization** including direction indicator, elevation, distance, and signal strength
+- 🧪 **Tool Suite:** GUI tools for viewing and preprocessing collected depth datasets, and for generating application icons
 
 ---
 
@@ -27,103 +51,84 @@ The system supports manual control, dataset collection for AI training, and dyna
 3. Install required Python packages:
 
 ```bash
-pip install coppeliasim-zmqremoteapi-client numpy
+pip install -r requirements.txt
 ```
 
 4. Start CoppeliaSim with a quadrotor scene containing:
    - `Quadcopter` model
    - `/target` dummy
-   
-5. Run the simulation from `main.py`:
+   - `/propeller` children properly configured
+
+5. Run the simulation:
 
 ```bash
 python main.py
 ```
 
-6. Use the keyboard to interact:
-   - Use `W/A/S/D` + `Q/E` keys to move and rotate the drone.
-   - Press `Enter` to open the menu.
+6. Use the keyboard or RC Joystick to interact:
+   - Use `W/A/S/D` + `Q/E` + `Z/SPACE`keys to move and rotate the drone.
+
 ---
 
-## Controls
+## Tools
 
-| Key  | Action |
-|------|-------|
-| `W`  | Move Forward |
-| `S`  | Move Backward |
-| `A`  | Strafe Left |
-| `D`  | Strafe Right |
-| `Q`  | Rotate Left (Yaw) |
-| `E`  | Rotate Right (Yaw) |
-| `Space` | Move Up |
-| `Z`  | Move Down |
+🧰 **Disaster Simulation Tools**  
+Includes utility apps like:
+
+- `View_Depth_Image.py` – GUI for batch image viewing and flipping
+- `Icon_Creator.py` – Create custom application icons (macOS/Windows friendly)
+
+Run tools using:
+
+```bash
+python Tools/View_Depth_Image.py
+python Tools/Icon_Creator.py
+```
 
 ---
 
 ## Dataset Collection Behavior
 
-- Event-driven capture on each published `simulation/frame` event.
-- Configurable sampling rate via `dataset_capture_frequency` (frames per capture).
-- Real Euclidean distances to victim (replacing dummy values).
-- Immediate one-off capture on `victim/detected` when distance < `victim_detection_threshold`.
-- Published events:
-  - `dataset/capture/complete`: per-frame metadata `{ frame, distance, action, victim_vec }`
-  - `dataset/batch/saved` / `dataset/batch/error`: batch save notifications `{ folder, counter }`
-  - `victim/detected`: anomaly alert `{ frame, distance }`
-- Batching on in-memory buffers of size `batch_size`, saved on background thread.
-- All event publishes from background threads are thread-safe.
-- On shutdown, unsubscribes from dataset events to clean up callbacks.
-
-Data is saved as compressed `.npz` files in `data/depth_dataset/{train,val,test}/batch_XXXXXX.npz` containing:
-  - `depths`: float32 array (N, H, W)
-  - `poses`: float32 array (N, 6)
-  - `frames`: int32 array (N,)
-  - `distances`: float32 array (N,)
-  - `actions`: int32 array (N,)
-  - `victim_dirs`: float32 array (N, 4)  # (ux,uy,uz,distance)
+Event-driven and real-time collection, saved in `.npz` format.  
+Refer to [dataset format documentation](docs/dataset_format.md) for details.
 
 ---
 
 ## Victim Detection Visualization
 
-The Status Tab provides comprehensive visualization for victim detection:
-
-- **Direction Indicator**: Radar-like display showing victim's position accurately relative to drone's heading
-- **Elevation Indicator**: Displays victim's height difference in meters with color coding
-- **Distance Display**: Shows distance to victim with color coding (green=near, orange=medium, red=far)
-- **Signal Strength**: Visual indicator that increases as drone gets closer to victim
-- **Safety Check**: System ensures victims spawn at least 2m away from the drone's starting position
-
-All visualizations update in real-time through the event subscription system, with coordinate transformations aligned to the drone's orientation.
+Comprehensive UI with radar indicators, elevation display, and real-time vector updates.
 
 ---
 
-## Future Improvements
+## Supported Controls
 
-- Separate AI module for intelligent navigation (will be hosted in a dedicated repo).  
-  *Placeholder: [AI Navigation Repository](https://github.com/your-org/ai-navigation-system)*
+### 🖥️ Keyboard
 
-- Advanced obstacle avoidance and path planning.
-- Dynamic obstacles such as moving objects or agents.
-- Expanded disaster scenarios with additional elements.
-- General bug fixes and polish.
+| Key     | Action             |
+|---------|--------------------|
+| `W`     | Move Forward       |
+| `S`     | Move Backward      |
+| `A`     | Strafe Left        |
+| `D`     | Strafe Right       |
+| `Q`     | Rotate Left (Yaw)  |
+| `E`     | Rotate Right (Yaw) |
+| `Space` | Move Up            |
+| `Z`     | Move Down          |
+
+### 🎮 USB RC Transmitter (e.g. Jumper T-PRO v2)
+
+| Stick        | Control        |
+|--------------|----------------|
+| Left Stick   | Throttle / Yaw |
+| Right Stick  | Pitch / Roll   |
 
 ---
 
-## Contribution
+## Contributors
 
-- **Thomas Lundqvist** – Senior Developer  
-  Main contributor responsible for core development and system architecture.
-
-- **Jakub Espandr** – Developer & Tester  
-  Assisted with development and conducted simulation testing.
-
-- **Hieu Tran** – Documentation & Product Manager  
-  Handled planning, documentation, and team coordination.
-
----
-
-This project was built through close collaboration, shared responsibility, and open communication among all team members.
+- **Thomas Lundqvist** – System Architect & Developer  
+- **Jakub Espandr** – Feature Developer & Testing  
+- **Hieu Tran** – Documentation & Management
 
 ---
 

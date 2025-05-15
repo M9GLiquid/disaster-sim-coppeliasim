@@ -9,7 +9,7 @@ from Managers.scene_manager import (
 )
 from Core.event_manager import EventManager
 from Managers.Connections.sim_connection import SimConnection
-from Utils.log_utils import get_logger
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
 
 # Get singleton instances
 SC = SimConnection.get_instance()

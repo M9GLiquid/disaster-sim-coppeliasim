@@ -40,7 +40,7 @@ def batch_flip(npz_dir, out_dir, flip_type):
     logger.info("Flipper", f"Found {total} .npz files. Applying {flip_type}...")
     print(f"Found {total} .npz files. Applying {flip_type}...")
     
-    axis = 1 if flip_type == 'fliplr' else 0
+    axis = 2 if flip_type == 'fliplr' else 1
     logger.debug_at_level(DEBUG_L1, "Flipper", f"Flipping along axis: {axis}")
     
     for idx, fpath in enumerate(files, 1):
@@ -60,7 +60,20 @@ def batch_flip(npz_dir, out_dir, flip_type):
             for k, v in data.items():
                 if isinstance(v, np.ndarray) and v.ndim >= 2:
                     logger.debug_at_level(DEBUG_L3, "Flipper", f"Flipping array: {k} with shape {v.shape}")
-                    flipped[k] = np.flip(v, axis=axis)
+                    
+                    # Check dimensions and use appropriate axis
+                    ndim = v.ndim
+                    if flip_type == 'fliplr':
+                        # For left-right flip, use last dimension (width)
+                        flip_axis = min(2, ndim - 1)  # Use axis 2 for 3D+ arrays, axis 1 for 2D arrays
+                    else:  # flipud
+                        # For up-down flip, use second-to-last dimension (height)
+                        flip_axis = min(1, ndim - 2)  # Use axis 1 for 3D+ arrays, axis 0 for 2D arrays
+                        if ndim < 2:
+                            flip_axis = 0  # Fallback for 1D arrays
+                            
+                    logger.debug_at_level(DEBUG_L3, "Flipper", f"Using flip_axis={flip_axis} for {ndim}D array")
+                    flipped[k] = np.flip(v, axis=flip_axis)
                 else:
                     flipped[k] = v
             

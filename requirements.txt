@@ -1,0 +1,15 @@
+# Core dependencies
+numpy>=1.19.0
+psutil>=5.9.0
+coppeliasim-zmqremoteapi-client>=1.0.0
+
+# Optional but recommended for full functionality
+opencv-python>=4.5.0  # For image processing
+pillow>=8.0.0         # For additional image handling
+matplotlib>=3.3.0     # For visualization
+scipy>=1.6.0          # For scientific computing
+
+# Development tools (optional)
+pytest>=6.0.0         # For testing
+flake8>=3.8.0         # For code linting
+black>=21.5b2         # For code formatting 

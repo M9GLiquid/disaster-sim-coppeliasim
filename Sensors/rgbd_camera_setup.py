@@ -1,11 +1,13 @@
 import math
 
 from Managers.Connections.sim_connection import SimConnection
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
 
 SC = SimConnection.get_instance()
+logger = get_logger()
 
 def setup_rgbd_camera(config):
-    print("[Camera] Creating combined RGB/depth sensors...")
+    logger.info("Camera", "Creating combined RGB/depth sensors...")
 
     parent_handle = SC.sim.getObject('/Quadcopter')
     target_handle = SC.sim.getObject('/target')
@@ -30,7 +32,6 @@ def setup_rgbd_camera(config):
 
     # ─── Create Main RGB Sensor ───
     cam_rgb = SC.sim.createVisionSensor(options, intParams, floatParams)
-    
     SC.sim.setObjectAlias(cam_rgb, "DroneSensorRGB")
     SC.sim.setObjectParent(cam_rgb, parent_handle, False)
     SC.sim.setObjectPosition(cam_rgb, parent_handle, [-0.1, 0.0, 0.0])
@@ -47,10 +48,10 @@ def setup_rgbd_camera(config):
     # ─── Hide the target if needed ───
     if not config.get('verbose', False):
         layer = SC.sim.getProperty(target_handle, "layer")
-        print(f"[RGBCameraSetup] Hiding target (layer {layer}).")
+        logger.debug_at_level(DEBUG_L1, "RGBCameraSetup", f"Hiding target (layer {layer}).")
     else:
-        print("[RGBCameraSetup] Target remains visible.")
+        logger.debug_at_level(DEBUG_L1, "RGBCameraSetup", "Target remains visible.")
 
-    print("[RGBCameraSetup] Sensors created and linked to floating views.")
+    logger.info("RGBCameraSetup", "Sensors created and linked to floating views.")
 
     return cam_rgb, floating_view_rgb

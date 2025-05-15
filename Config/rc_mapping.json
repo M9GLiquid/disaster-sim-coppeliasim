@@ -1,0 +1,18 @@
+{
+    "throttle": {
+        "axis": 2,
+        "invert": false
+    },
+    "yaw": {
+        "axis": 3,
+        "invert": false
+    },
+    "pitch": {
+        "axis": 1,
+        "invert": true
+    },
+    "roll": {
+        "axis": 0,
+        "invert": false
+    }
+}

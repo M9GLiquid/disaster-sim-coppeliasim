@@ -23,11 +23,8 @@ class EventManager:
         
         self.listeners = defaultdict(list)
         self.lock = threading.Lock()
+        self.logger = get_logger()  # Initialize logger
         EventManager._instance = self
-        
-        # Get logger instance
-        self.logger = get_logger()
-        self.logger.info("EventManager", "Event manager initialized")
 
     def subscribe(self, topic, callback):
         """
@@ -35,7 +32,7 @@ class EventManager:
         """
         with self.lock:
             self.listeners[topic].append(callback)
-        self.logger.debug_at_level(DEBUG_L1, "EventManager", f"Subscribed to topic '{topic}'")
+        self.logger.debug_at_level(DEBUG_L2, "EventManager", f"Subscribed to topic '{topic}'.")
 
     def unsubscribe(self, topic, callback):
         """
@@ -44,9 +41,9 @@ class EventManager:
         with self.lock:
             if topic in self.listeners and callback in self.listeners[topic]:
                 self.listeners[topic].remove(callback)
-                self.logger.debug_at_level(DEBUG_L1, "EventManager", f"Unsubscribed from topic '{topic}'")
+                self.logger.debug_at_level(DEBUG_L2, "EventManager", f"Unsubscribed from topic '{topic}'.")
             else:
-                self.logger.warning("EventManager", f"Could not unsubscribe from topic '{topic}' - callback not found")
+                self.logger.warning("EventManager", f"Could not unsubscribe from topic '{topic}' - callback not found.")
 
     def publish(self, topic, data=None):
         """
@@ -54,23 +51,19 @@ class EventManager:
         """
         with self.lock:
             callbacks = list(self.listeners[topic])
-        
-        # Log event publication at different detail levels based on event type
-        if topic.startswith('keyboard/'):
-            # Keyboard events are very frequent, so use highest debug level
-            self.logger.debug_at_level(DEBUG_L3, "EventManager", f"Publishing '{topic}' event with data: {data}")
-        elif topic == 'simulation/frame':
-            # Frame updates are very frequent, so use highest debug level
-            self.logger.debug_at_level(DEBUG_L3, "EventManager", f"Publishing frame event with dt: {data}")
-        else:
-            # Other events are less frequent, use medium debug level
-            self.logger.debug_at_level(DEBUG_L2, "EventManager", f"Publishing '{topic}' event with data: {data}")
 
         for callback in callbacks:
             try:
                 callback(data)
             except Exception as e:
-                self.logger.error("EventManager", f"Error calling subscriber for topic '{topic}': {e}")
+                # Special handling for background thread UI errors
+                error_str = str(e)
+                is_thread_error = "main thread is not in main loop" in error_str
+                is_dataset_event = topic.startswith('dataset/')
+                
+                # Only log errors that aren't threading errors from dataset events
+                if not (is_thread_error and is_dataset_event):
+                    self.logger.error("EventManager", f"Error calling subscriber for topic '{topic}': {e}")
 
     def unsubscribe_all(self):
         """
@@ -78,4 +71,4 @@ class EventManager:
         """
         with self.lock:
             self.listeners.clear()
-        self.logger.info("EventManager", "Cleared all subscriptions")
+        self.logger.info("EventManager", "Cleared all subscriptions.")

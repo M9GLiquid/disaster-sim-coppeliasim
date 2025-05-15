@@ -5,15 +5,18 @@ import math
 import random
 from Managers.Connections.sim_connection import SimConnection
 from Core.event_manager import EventManager
+from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
 from Utils.terrain_elements import (
     FLOOR_THICKNESS, create_floor, create_rock, create_tree, 
     create_victim, create_bush, create_ground_foliage, 
     does_object_exist_by_alias
 )
+from Managers.random_object_manager import RandomObjectManager
 
 # Get singleton instances
 SC = SimConnection.get_instance()
 EM = EventManager.get_instance()
+logger = get_logger()
 
 # Event names - centralizing all scene events
 SCENE_START_CREATION = 'scene/start_creation'
@@ -43,6 +46,12 @@ class SceneManager:
         self.total_objects = 0
         self.verbose = False
         
+        # Random object manager
+        self.random_object_manager = None
+        
+        # Initialize logger
+        self.logger = get_logger()
+        
         # Register event handlers for both internal and external events
         EM.subscribe(SCENE_START_CREATION, self._handle_start_creation)
         EM.subscribe(SCENE_PROCESS_BATCH, self._handle_process_batch)
@@ -51,7 +60,7 @@ class SceneManager:
         EM.subscribe(SCENE_RESTART, self._handle_restart)
         
         if self.verbose:
-            print("[SceneManager] Initialized and registered event handlers")
+            self.logger.debug_at_level(DEBUG_L1, "SceneManager", "Initialized and registered event handlers")
     
     def _create_scene_structure(self):
         """Create the main dummy and category dummies for organization"""
@@ -61,7 +70,6 @@ class SceneManager:
         self.objects.append(self.scene_dummy)
         
         # Create category dummies
-        # Changed 'victim' to 'victims' to avoid name conflict with the Victim object
         categories = ['floor', 'rocks', 'trees', 'bushes', 'foliage', 'victims']
         self.category_dummies = {}
         
@@ -76,99 +84,57 @@ class SceneManager:
         """Generate all the object creation tasks based on config"""
         area_size = self.config.get("area_size", 10.0)
         
-        # Add floor task (always included)
+        # Add floor task
         self.creation_tasks.append(('floor', {
             'area_size': area_size
         }))
         
-        # Add rocks if enabled
-        if self.config.get("include_rocks", True):
-            num_rocks = self.config.get("num_rocks", 0)
-            if self.verbose:
-                print(f"[SceneManager] Including {num_rocks} rocks")
-            for _ in range(num_rocks):
-                x = random.uniform(-area_size/2, area_size/2)
-                y = random.uniform(-area_size/2, area_size/2)
-                size = random.uniform(0.3, 0.7)
-                self.creation_tasks.append(('rock', {
-                    'position': (x, y),
-                    'size': size
-                }))
-        elif self.verbose:
-            print("[SceneManager] Rocks disabled in configuration")
+        # Add rocks
+        num_rocks = self.config.get("num_rocks", 0)
+        for _ in range(num_rocks):
+            x = random.uniform(-area_size/2, area_size/2)
+            y = random.uniform(-area_size/2, area_size/2)
+            size = random.uniform(0.3, 0.7)
+            self.creation_tasks.append(('rock', {
+                'position': (x, y),
+                'size': size
+            }))
         
         # Add trees
         num_trees = self.config.get("num_trees", 0)
         fraction_standing = self.config.get("fraction_standing", 0.7)
         num_standing = int(num_trees * fraction_standing)
-        num_fallen = num_trees - num_standing
         
-        # Track how many trees of each type we'll create
-        include_standing = self.config.get("include_standing_trees", True)
-        include_fallen = self.config.get("include_fallen_trees", True)
+        for i in range(num_trees):
+            x = random.uniform(-area_size/2, area_size/2)
+            y = random.uniform(-area_size/2, area_size/2)
+            fallen = (i >= num_standing)
+            trunk_len = None  # Let the create_tree function determine based on fallen status
+            self.creation_tasks.append(('tree', {
+                'position': (x, y),
+                'fallen': fallen,
+                'trunk_len': trunk_len
+            }))
         
-        if self.verbose:
-            tree_status = []
-            if include_standing:
-                tree_status.append(f"{num_standing} standing")
-            if include_fallen:
-                tree_status.append(f"{num_fallen} fallen")
-            if tree_status:
-                print(f"[SceneManager] Including trees: {', '.join(tree_status)}")
-            else:
-                print("[SceneManager] All trees disabled in configuration")
+        # Add bushes
+        num_bushes = self.config.get("num_bushes", 0)
+        for _ in range(num_bushes):
+            x = random.uniform(-area_size/2, area_size/2)
+            y = random.uniform(-area_size/2, area_size/2)
+            self.creation_tasks.append(('bush', {
+                'position': (x, y)
+            }))
         
-        # Create standing trees if enabled
-        if include_standing:
-            for i in range(num_standing):
-                x = random.uniform(-area_size/2, area_size/2)
-                y = random.uniform(-area_size/2, area_size/2)
-                self.creation_tasks.append(('tree', {
-                    'position': (x, y),
-                    'fallen': False,
-                    'trunk_len': None
-                }))
+        # Add ground foliage
+        num_foliage = self.config.get("num_foliage", 0)
+        for _ in range(num_foliage):
+            x = random.uniform(-area_size/2, area_size/2)
+            y = random.uniform(-area_size/2, area_size/2)
+            self.creation_tasks.append(('ground_foliage', {
+                'position': (x, y)
+            }))
         
-        # Create fallen trees if enabled
-        if include_fallen:
-            for i in range(num_fallen):
-                x = random.uniform(-area_size/2, area_size/2)
-                y = random.uniform(-area_size/2, area_size/2)
-                self.creation_tasks.append(('tree', {
-                    'position': (x, y),
-                    'fallen': True,
-                    'trunk_len': None
-                }))
-        
-        # Add bushes if enabled
-        if self.config.get("include_bushes", True):
-            num_bushes = self.config.get("num_bushes", 0)
-            if self.verbose:
-                print(f"[SceneManager] Including {num_bushes} bushes")
-            for _ in range(num_bushes):
-                x = random.uniform(-area_size/2, area_size/2)
-                y = random.uniform(-area_size/2, area_size/2)
-                self.creation_tasks.append(('bush', {
-                    'position': (x, y)
-                }))
-        elif self.verbose:
-            print("[SceneManager] Bushes disabled in configuration")
-        
-        # Add ground foliage if enabled
-        if self.config.get("include_foliage", True):
-            num_foliage = self.config.get("num_foliage", 0)
-            if self.verbose:
-                print(f"[SceneManager] Including {num_foliage} foliage clusters")
-            for _ in range(num_foliage):
-                x = random.uniform(-area_size/2, area_size/2)
-                y = random.uniform(-area_size/2, area_size/2)
-                self.creation_tasks.append(('ground_foliage', {
-                    'position': (x, y)
-                }))
-        elif self.verbose:
-            print("[SceneManager] Ground foliage disabled in configuration")
-        
-        # Add victim (always included - necessary for functionality)
+        # Add victim (always last)
         # Calculate the drone's position at the edge of the area
         drone_x = area_size * 0.45
         drone_y = area_size * 0.45
@@ -183,8 +149,7 @@ class SceneManager:
         max_attempts = 100  # Prevent infinite loops
         found_valid_position = False
         
-        if self.verbose:
-            print(f"[SceneManager] Looking for victim position at least {min_distance}m from drone at ({drone_x:.2f}, {drone_y:.2f})")
+        self.logger.info("SceneManager", f"Looking for victim position at least {min_distance}m from drone at ({drone_x:.2f}, {drone_y:.2f})")
         
         for attempt in range(max_attempts):
             # Generate a random position with margin from area edge
@@ -200,34 +165,27 @@ class SceneManager:
                 victim_x = x
                 victim_y = y
                 found_valid_position = True
-                if self.verbose:
-                    print(f"[SceneManager] Found valid victim position at ({victim_x:.2f}, {victim_y:.2f}), " 
-                        f"{distance_to_drone:.2f}m from drone starting position (attempt {attempt+1})")
+                self.logger.info("SceneManager", f"Found valid victim position at ({victim_x:.2f}, {victim_y:.2f}), " 
+                      f"{distance_to_drone:.2f}m from drone starting position (attempt {attempt+1})")
                 break
             
-            if self.verbose and (attempt + 1) % 10 == 0:
-                print(f"[SceneManager] Still searching for valid victim position... (attempt {attempt+1})")
+            if (attempt + 1) % 10 == 0:
+                self.logger.debug_at_level(DEBUG_L1, "SceneManager", f"Still searching for valid victim position... (attempt {attempt+1})")
         
-        if not found_valid_position and self.verbose:
-            print(f"[SceneManager] WARNING: Could not find valid victim position after {max_attempts} attempts. "
+        if not found_valid_position:
+            self.logger.warning("SceneManager", f"Could not find valid victim position after {max_attempts} attempts. "
                   f"Using position ({victim_x:.2f}, {victim_y:.2f})")
         
         # Add the victim task with the validated position
-        if self.verbose:
-            print(f"[SceneManager] Adding victim creation task with position ({victim_x:.2f}, {victim_y:.2f})")
+        self.logger.debug_at_level(DEBUG_L1, "SceneManager", f"Adding victim creation task with position ({victim_x:.2f}, {victim_y:.2f})")
         self.creation_tasks.append(('victim', {
             'position': (victim_x, victim_y)
         }))
         
         self.total_objects = len(self.creation_tasks)
-        if self.verbose:
-            print(f"[SceneManager] Generated {self.total_objects} creation tasks")
-    
+        
     def _teleport_quadcopter_to_edge(self):
         """Teleport the quadcopter to the edge of the area (if it exists)"""
-        if self.verbose:
-            print("[SceneManager] Attempting to teleport quadcopter to edge of area")
-            
         try:
             # Get quadcopter and target handles
             quadcopter = SC.sim.getObject('/Quadcopter')
@@ -254,48 +212,42 @@ class SceneManager:
             SC.sim.setObjectOrientation(quadcopter, -1, [0, 0, angle_to_center])
             SC.sim.setObjectOrientation(target, -1, [0, 0, angle_to_center])
             
-            # Try to set properties with safe error handling
+            # Try to set the target to be invisible to depth sensor
             try:
-                # Try setting properties directly and catch specific property errors
-                # instead of trying to check properties info first
                 SC.sim.setBoolProperty(target, "depthInvisible", True)
-                SC.sim.setBoolProperty(target, "visible", False)
-            except Exception as prop_error:
-                # Only log if verbose since these properties are not critical
-                if self.verbose:
-                    print(f"[Teleport] Warning: Could not set target object properties: {prop_error}")
-                    print("[Teleport] This is not critical and teleportation succeeded.")
+            except Exception:
+                self.logger.debug_at_level(DEBUG_L2, "Teleport", "Note: 'depthInvisible' property not available for target object")
             
-            if self.verbose:
-                print(f"[Teleport] Quadcopter positioned at edge position [{x_pos:.2f}, {y_pos:.2f}, {z_pos:.2f}] facing center")
+            # Try to set the target to be invisible visually
+            try:
+                SC.sim.setBoolProperty(target, "visible", False)
+            except Exception:
+                self.logger.debug_at_level(DEBUG_L2, "Teleport", "Note: 'visible' property not available for target object")
+            
+            # Log the new position for debugging
+            self.logger.info("Teleport", f"Quadcopter positioned at edge position [{x_pos:.2f}, {y_pos:.2f}, {z_pos:.2f}] facing center")
                 
             return True
-        except Exception as e:
-            # Enhanced error message with more information
-            error_msg = str(e)
-            additional_info = ""
-            
-            if "object does not exist" in error_msg:
-                additional_info = " - Quadcopter or target object not found in scene"
-            elif "property could not be written" in error_msg:
-                additional_info = " - The property is not supported for this object type"
-            
-            print(f"[Teleport] Error teleporting Quadcopter/target: {error_msg}{additional_info}")
-            if self.verbose:
-                print("[Teleport] Make sure both '/Quadcopter' and '/target' objects exist in your scene")
-            return False
+        except Exception as error_msg:
+            # Get Python exception arguments/message as additional info
+            import traceback
+            additional_info = f"\n{traceback.format_exc()}" if self.verbose else ""
+            self.logger.error("Teleport", f"Error teleporting Quadcopter/target: {error_msg}{additional_info}")
+            self.logger.error("Teleport", "Make sure both '/Quadcopter' and '/target' objects exist in your scene")
         
+        return False
+    
     def _handle_start_creation(self, config):
         """Handle the scene creation start event"""
         if self.is_creating:
-            if self.verbose:
-                print("[SceneManager] Scene creation already in progress, ignoring start request")
+            self.logger.warning("SceneManager", "Scene creation already in progress, ignoring start request")
             return
             
         # Store the configuration
         self.config = config
         self.batch_size = config.get('batch_size', 10)
         self.verbose = config.get('verbose', False)
+        area_size = config.get("area_size", 10.0)
         
         # First, clear any existing scene
         self._clear_scene()
@@ -306,8 +258,26 @@ class SceneManager:
         self.completed_objects = 0
         self.objects = []
         
-        if self.verbose:
-            print("[SceneManager] Beginning scene creation process")
+        # Initialize RandomObjectManager with explicitly set parameters from config
+        self.random_object_manager = RandomObjectManager(SC.sim, area_size)
+        
+        # Explicitly set the dynamic object counts from config
+        num_birds = config.get("num_birds", 10)
+        num_falling_trees = config.get("num_falling_trees", 5)
+        tree_spawn_interval = config.get("tree_spawn_interval", 30.0)
+        bird_speed = config.get("bird_speed", 1.0)
+        
+        self.logger.info("SceneManager", f"Setting dynamic objects from config: {num_birds} birds (speed: {bird_speed}), {num_falling_trees} trees, spawn: {tree_spawn_interval}s")
+        
+        # Update the RandomObjectManager with these values
+        # Note: This internally calls _update_objects() which clears and creates objects,
+        # so we don't need to call create_object() again
+        self.random_object_manager.set_object_counts(
+            num_birds=num_birds,
+            num_falling_trees=num_falling_trees,
+            tree_spawn_interval=tree_spawn_interval,
+            bird_speed=bird_speed
+        )
         
         # Try to teleport quadcopter if it exists
         self._teleport_quadcopter_to_edge()
@@ -318,8 +288,8 @@ class SceneManager:
         # Generate creation tasks
         self._generate_creation_tasks()
         
-        if self.verbose:
-            print(f"[SceneManager] Starting scene creation with {self.total_objects} objects")
+        # Log the start of creation
+        self.logger.info("SceneManager", f"Starting scene creation with {self.total_objects} objects")
         
         # Trigger the first batch
         EM.publish(SCENE_PROCESS_BATCH, None)
@@ -329,13 +299,15 @@ class SceneManager:
         if not self.is_creating or not self.creation_tasks:
             return
         
-        # Process a small batch (3-5 objects at a time)
-        batch_size = min(3, len(self.creation_tasks))
-        
-        if self.verbose:
-            remaining = len(self.creation_tasks)
-            print(f"[SceneManager] Processing batch of {batch_size} objects ({remaining} remaining)")
+        # Update random objects
+        if self.random_object_manager:
+            self.random_object_manager.update()
             
+        if not self.is_creating or not self.creation_tasks:
+            return
+        
+        # Process batch
+        batch_size = min(3, len(self.creation_tasks))
         for _ in range(batch_size):
             if not self.creation_tasks:
                 break
@@ -348,8 +320,7 @@ class SceneManager:
                 self._add_to_category(obj_type, obj)
                 
             self.completed_objects += 1
-        
-            # Update progress with raw data (following Separation of Concerns)
+            
             progress = self.completed_objects / max(1, self.total_objects)
             EM.publish(SCENE_CREATION_PROGRESS, {
                 'progress': progress,
@@ -357,13 +328,14 @@ class SceneManager:
                 'completed_objects': self.completed_objects,
                 'total_objects': self.total_objects
             })
+            
+            # Log progress
+            self.logger.debug_at_level(DEBUG_L1, "SceneManager", f"Created {self.completed_objects}/{self.total_objects} objects ({obj_type})")
         
-        # Check if we're done
         if not self.creation_tasks:
             self.is_creating = False
-            if self.verbose:
-                print(f"[SceneManager] Scene creation completed with {self.completed_objects} objects")
-                
+            self.logger.info("SceneManager", f"Scene creation completed with {self.completed_objects} objects")
+            
             EM.publish(SCENE_CREATION_PROGRESS, {
                 'progress': 1.0,
                 'current_category': 'complete',
@@ -372,98 +344,100 @@ class SceneManager:
             })
             EM.publish(SCENE_CREATION_COMPLETED, self.objects)
         else:
-            # Schedule next batch processing with after() to allow UI updates
-            # This is the key improvement - we let the main event loop finish this cycle
-            EM.publish('trigger_ui_update', None)  # Special event to trigger UI update
+            EM.publish('trigger_ui_update', None)
             EM.publish(SCENE_PROCESS_BATCH, None)
-    
-    def _handle_creation_canceled(self, _):
-        """Handle the scene creation cancel event"""
-        if self.is_creating:
-            if self.verbose:
-                print("[SceneManager] Scene creation canceled by user request")
-                
-            self.is_creating = False
-            self.creation_tasks = []
-            EM.publish(SCENE_CREATION_CANCELED, None)
-    
-    def _handle_clear(self, _):
-        """Handle the scene clear event"""
-        if self.verbose:
-            print("[SceneManager] Clearing scene")
-            
-        success = self._clear_scene()
-        
-        if self.verbose:
-            print(f"[SceneManager] Scene clearing {'succeeded' if success else 'failed'}")
-            
-        EM.publish(SCENE_CLEARED, success)
-    
-    def _handle_restart(self, config):
-        """Handle the scene restart event"""
-        if self.verbose:
-            print("[SceneManager] Restarting scene")
-            
-        # First clear the scene
-        self._clear_scene()
-        
-        # Use default config if none provided
-        if config is None:
-            from Utils.config_utils import get_default_config
-            config = get_default_config()
-        
-        # Update verbose setting
-        self.verbose = config.get('verbose', False)
-        
-        # Then start a new scene creation
-        EM.publish(SCENE_START_CREATION, config)
     
     def _clear_scene(self):
         """Clear the scene - internal implementation"""
-        # Cancel any ongoing creation
         if self.is_creating:
-            if self.verbose:
-                print("[SceneManager] Canceling ongoing scene creation before clearing")
-                
             self.is_creating = False
             self.creation_tasks = []
         
-        # Remove existing scene objects
-        try:
-            existing_scene = does_object_exist_by_alias("SceneElements")
-            if existing_scene is not None:
-                if self.verbose:
-                    print("[SceneManager] Removing scene elements dummy")
-                    
-                SC.sim.removeObject(existing_scene)
-            else:
-                # Check if there are any objects with scene-related names
-                if self.verbose:
-                    print("[SceneManager] Main scene dummy not found, checking for category dummies")
-                    
-                try:
-                    for category in ["Floor", "Rocks", "Trees", "Bushes", "Foliage", "Victim"]:
-                        obj = does_object_exist_by_alias(category)
-                        if obj is not None:
-                            SC.sim.removeObject(obj)
-                            if self.verbose:
-                                print(f"[SceneManager] Removed {category} dummy")
-                except Exception as e:
-                    print(f"[SceneManager] Error during extended clearing: {e}")
-        except Exception as e:
-            print(f"[SceneManager] Error while clearing scene: {e}")
-            return False
+        # Clear random objects
+        if self.random_object_manager:
+            self.random_object_manager.clear_objects()
+            self.random_object_manager = None
         
-        # Reset all state
+        try:
+            # List of objects to preserve (essential objects)
+            preserve_objects = []
+            try:
+                # Try to get quadcopter and target if they exist
+                quadcopter = SC.sim.getObject('/Quadcopter')
+                target = SC.sim.getObject('/target')
+                preserve_objects.extend([quadcopter, target])
+            except:
+                pass  # If objects don't exist, that's fine
+
+            # Try to remove objects by their categories first
+            categories = ['Floor', 'Rocks', 'Trees', 'Bushes', 'Foliage', 'Victims']
+            for category in categories:
+                try:
+                    category_dummy = SC.sim.getObject(f'./{category}')
+                    # Get all objects under this category
+                    objects = SC.sim.getObjectsInTree(category_dummy, SC.sim.handle_all)
+                    # Remove all objects in this category
+                    for obj in objects:
+                        if obj not in preserve_objects:
+                            try:
+                                SC.sim.removeObject(obj)
+                                self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Removed {category} object: {obj}")
+                            except Exception as e:
+                                self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Error removing {category} object {obj}: {e}")
+                    # Remove the category dummy itself
+                    SC.sim.removeObject(category_dummy)
+                    self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Removed {category} category dummy")
+                except:
+                    pass  # If category doesn't exist, that's fine
+
+            # Try to remove the main scene dummy
+            try:
+                scene_dummy = SC.sim.getObject('./SceneElements')
+                SC.sim.removeObject(scene_dummy)
+                self.logger.debug_at_level(DEBUG_L1, "SceneManager", "Removed scene elements dummy")
+            except:
+                pass  # If scene dummy doesn't exist, that's fine
+            
+            # Instead of trying to get all objects using getObjects (which seems problematic),
+            # we'll just make sure we've removed all the tracked objects
+            self.logger.info("SceneManager", "Cleanup complete - removed all tracked scene objects")
+            
+            # If we need to clean up anything else in the future, we can implement a more specific
+            # approach rather than trying to get all objects in the scene
+        except Exception as e:
+            self.logger.error("SceneManager", f"Error while clearing scene: {e}")
+        
         self.scene_dummy = None
         self.category_dummies = {}
         self.objects = []
         
-        if self.verbose:
-            print("[SceneManager] Scene cleared successfully")
-            
+        self.logger.info("SceneManager", "Scene cleared")
+        EM.publish(SCENE_CLEARED, None)
+        
         return True
     
+    def _handle_creation_canceled(self, _):
+        """Handle the scene creation cancel event"""
+        if self.is_creating:
+            self.is_creating = False
+            self.creation_tasks = []
+            self.logger.info("SceneManager", "Scene creation canceled")
+    
+    def _handle_clear(self, _):
+        """Handle the scene clear event"""
+        self._clear_scene()
+        EM.publish(SCENE_CLEARED, None)
+    
+    def _handle_restart(self, config):
+        """Handle the scene restart event"""
+        self._clear_scene()
+        
+        if config is None:
+            from Utils.config_utils import get_default_config
+            config = get_default_config()
+        
+        EM.publish(SCENE_START_CREATION, config)
+        
     def _create_object(self, obj_type, params):
         """Create a single object based on type and parameters"""
         if obj_type == 'floor':
@@ -515,38 +489,38 @@ class SceneManager:
                 
                 # If the category dummy is already in the parent chain, we have a cycle
                 if self.category_dummies[category] in parent_chain:
-                    print(f"[SceneManager] Skipping parenting for victim - would create circular reference")
+                    self.logger.debug_at_level(DEBUG_L2, "SceneManager", "Skipping parenting for victim - would create circular reference")
                     
                     # Just make sure the victim is visible
                     try:
                         SC.sim.setShapeColor(handle, None, SC.sim.colorcomponent_ambient_diffuse, [1.0, 1.0, 1.0])
                         SC.sim.setShapeColor(handle, None, SC.sim.colorcomponent_emission, [0.5, 0.5, 0.5])
                     except Exception as color_error:
-                        print(f"[SceneManager] Note: Could not update victim colors: {color_error}")
+                        self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Note: Could not update victim colors: {color_error}")
                         
                     # Get and log position to verify
                     try:
                         position = SC.sim.getObjectPosition(handle, -1)
-                        print(f"[SceneManager] Final victim position: {position}")
+                        self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Final victim position: {position}")
                     except:
                         pass
                         
                     return
                     
                 # Otherwise, we can safely parent it
-                print(f"[SceneManager] Parenting victim to category dummy")
+                self.logger.debug_at_level(DEBUG_L2, "SceneManager", "Parenting victim to category dummy")
                 SC.sim.setObjectParent(handle, self.category_dummies[category], True)
                 
                 # Verify position after parenting
                 try:
                     new_position = SC.sim.getObjectPosition(handle, -1)
-                    print(f"[SceneManager] Victim position after final parenting: {new_position}")
+                    self.logger.debug_at_level(DEBUG_L3, "SceneManager", f"Victim position after final parenting: {new_position}")
                 except:
                     pass
                 
                 return
             except Exception as e:
-                print(f"[SceneManager] Error in special victim handling: {e}")
+                self.logger.error("SceneManager", f"Error in special victim handling: {e}")
                 # Continue with normal handling
         
         # Normal handling for other objects
@@ -561,7 +535,7 @@ class SceneManager:
             current_parent = SC.sim.getObjectParent(handle)
             if current_parent == self.category_dummies[category]:
                 if self.verbose:
-                    print(f"[SceneManager] {alias} already correctly parented to {category} category")
+                    self.logger.debug_at_level(DEBUG_L3, "SceneManager", f"{alias} already correctly parented to {category} category")
                 return
                 
             # Check if the object is an ancestor of the category dummy (would create circular reference)
@@ -584,8 +558,8 @@ class SceneManager:
             if is_ancestor:
                 if self.verbose:
                     chain_str = " -> ".join(ancestor_chain)
-                    print(f"[SceneManager] Cannot parent {alias} to {category} category - would create circular reference")
-                    print(f"[SceneManager] Ancestry chain: {chain_str}")
+                    self.logger.warning("SceneManager", f"Cannot parent {alias} to {category} category - would create circular reference")
+                    self.logger.debug_at_level(DEBUG_L2, "SceneManager", f"Ancestry chain: {chain_str}")
                 return
             
             # Safe to parent
@@ -593,9 +567,9 @@ class SceneManager:
                 
         except Exception as e:
             # This shouldn't stop the scene creation, just log it
-            if self.verbose:
-                print(f"[SceneManager] Error parenting {alias} ({handle}) to {category} category: {e}")
-                print(f"[SceneManager] Continuing with scene creation...")
+            alias = SC.sim.getObjectAlias(handle) if SC.sim is not None else "unknown"
+            self.logger.error("SceneManager", f"Error parenting {alias} ({handle}) to {category} category: {e}")
+            self.logger.info("SceneManager", "Continuing with scene creation...")
 
 # Singleton instance
 _scene_manager = None

@@ -62,9 +62,16 @@ def capture_distance_to_victim():
     Calculate the actual distance from the drone to the victim.
     """
     try:
-        # Get handles to quadcopter and victim
+        # Get handle to quadcopter
         quad_handle = SC.sim.getObject('/Quadcopter')
-        victim_handle = SC.sim.getObject('/Victim')
+        
+        # Check if victim exists
+        try:
+            victim_handle = SC.sim.getObject('/Victim')
+        except Exception:
+            # Victim doesn't exist, return -1 as invalid distance
+            logger.debug_at_level(2, "CaptureUtils", "No victim in scene, skipping distance calculation")
+            return -1.0
         
         # Get positions
         quad_pos = SC.sim.getObjectPosition(quad_handle, -1)

@@ -5,15 +5,12 @@ Contains shared utilities for position handling, object creation, and property s
 import random
 import math
 from Utils.terrain_elements import FLOOR_THICKNESS
-from Utils.log_utils import get_logger
 
 from Managers.Connections.sim_connection import SimConnection
 SC = SimConnection.get_instance()
 
 from Core.event_manager import EventManager
 EM = EventManager.get_instance()
-
-logger = get_logger()
 
 def normalize_position(pos):
     """Normalize position to 2D if it has more dimensions."""
@@ -59,42 +56,26 @@ def create_terrain_object(object_type, pos, size=None, **kwargs):
     elif object_type == 'victim':
         obj = create_victim(pos, **kwargs)
     else:
-        logger.error("SceneHelpers", f"Unknown terrain object type: {object_type}")
         raise ValueError(f"Unknown terrain object type: {object_type}")
     
     # Set standard properties
     set_standard_object_properties(obj)
     
-    logger.debug_at_level(2, "SceneHelpers", f"Created {object_type} at position {pos}")
     return obj
 
 def sample_victim_pos(config):
     area = config["area_size"]
     margin = 1.0
-    pos = (
+    return (
         random.uniform(-area / 2 + margin, area / 2 - margin),
         random.uniform(-area / 2 + margin, area / 2 - margin)
     )
-    logger.debug_at_level(3, "SceneHelpers", f"Sampled victim position: {pos}")
-    return pos
 
 def make_pos_sampler(config, avoid_zone, avoid_radius, avoid_height):
     area = config["area_size"]
-    
-    # Parse clear_zone_center if needed
-    from Utils.config_utils import parse_coordinate_tuple
-    try:
-        clear_center = parse_coordinate_tuple(config.get("clear_zone_center", "(0, 0)"))
-    except ValueError:
-        # Fallback to default if parsing fails
-        clear_center = (0, 0)
-        logger.warning("SceneHelpers", "Failed to parse clear_zone_center, using default (0, 0)")
-        
+    clear_center = config.get("clear_zone_center", (0, 0))
     clear_radius = config.get("clear_zone_radius", 0)
     floor_height = FLOOR_THICKNESS
-
-    logger.info("SceneHelpers", f"Initializing position sampler with area={area}, clear_center={clear_center}, clear_radius={clear_radius}")
-    logger.info("SceneHelpers", f"Using {'optimized' if config.get('optimized_creation', True) else 'standard'} position sampling")
 
     if config.get("optimized_creation", True):
         def random_pos_optimized(batch_size=1):
@@ -118,23 +99,13 @@ def make_pos_sampler(config, avoid_zone, avoid_radius, avoid_height):
                         break
                 attempts += batch_size
             if batch_size == 1:
-                if not positions:
-                    logger.warning("SceneHelpers", "Failed to find valid position, using (0, 0)")
-                    return (0, 0)
-                return positions[0]
-            logger.debug_at_level(3, "SceneHelpers", f"Generated {len(positions)} positions in {attempts} attempts")
+                return positions[0] if positions else (0, 0)
             return positions
         return random_pos_optimized
 
     else:
         def random_pos():
-            attempts = 0
             while True:
-                attempts += 1
-                if attempts > 100:
-                    logger.warning("SceneHelpers", "Excessive attempts to find valid position")
-                    return (0, 0)
-                    
                 x = random.uniform(-area/2, area/2)
                 y = random.uniform(-area/2, area/2)
                 dx1, dy1 = x - clear_center[0], y - clear_center[1]
