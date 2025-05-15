@@ -1,28 +1,37 @@
-# Ignore Python cache
-__pycache__/
-*.pyc
+*_guide.*
+*.ipynb
 
-# Ignore system files
-.DS_Store
-Thumbs.db
+**/__pycache__
 
-# Ignore any temporary output files
+**/*.ipynb
+
+**/*.pyc
+
+**/*.pyo
+
+ROADMAP.md
+
 *.log
-*.tmp
 
-# Ignore IDE specific files
+*.log.*
+
+*.log.*.*
+
+data/
+
+*.zip
+
+*.tar
+
+*.tar.gz
+
+
 .vscode/
 
-# Ignore Folders
-Data/
-data/
-Misc/
+.env
+
+.env.*
+
+.cursor/
+
 Docs/
-
-# Ignore .gitignore
-.gitignore
-
-# Ignore guide files
-*_guide.md
-setup.md
-ROADMAP.md
