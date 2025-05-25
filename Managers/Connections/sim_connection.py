@@ -148,3 +148,9 @@ class SimConnection:
             self.logger.debug_at_level(DEBUG_L1, "Connection", "Connection flag set to disconnected")
         except Exception as e:
             self.logger.error("Connection", f"Error during simulation stop: {e}")
+
+    def get_simulation_time_step(self) -> float:
+        """
+        Returns the fixed simulation time step in seconds.
+        """
+        return self.sim.getSimulationTimeStep()

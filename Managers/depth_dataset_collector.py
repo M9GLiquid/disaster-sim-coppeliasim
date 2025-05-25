@@ -10,7 +10,8 @@ from Utils.capture_utils import capture_depth, capture_pose, capture_distance_to
 from Utils.config_utils import get_default_config
 from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
 from Utils.episode_utils import save_episode_data, EPISODE_START, EPISODE_END, EPISODE_SAVE_COMPLETED, EPISODE_SAVE_ERROR
-
+from Managers.scene_manager import SCENE_CREATION_COMPLETED, SCENE_CLEARED
+from Utils.action_label_utils import get_action_label, ActionLabel
 from Managers.Connections.sim_connection import SimConnection
 from Core.event_manager import EventManager
 
@@ -133,14 +134,16 @@ class DepthDatasetCollector:
 
         # Episode collection activation flag
         self.collecting_episode = False
-        
+        # Activation flags
+        self.logging_active = False
         # Subscribe to episode events instead of scene events
         EM.subscribe(EPISODE_START, self._on_episode_start)
         EM.subscribe(EPISODE_END, self._on_episode_end)
+        # Subscribe to scene events for logging activation
+        EM.subscribe(SCENE_CREATION_COMPLETED, self._on_scene_created)
+        EM.subscribe(SCENE_CLEARED, self._on_scene_cleared)
 
-        # Event subscriptions
-        EM.subscribe('keyboard/move',   self._on_move)
-        EM.subscribe('keyboard/rotate', self._on_rotate)
+        # Remove keyboard-based action tracking (now using movement-based labels)
 
         logger.debug_at_level(DEBUG_L1, "DepthCollector", "Event subscriptions registered")
 
@@ -180,13 +183,14 @@ class DepthDatasetCollector:
         logger.info("DepthCollector", f"Episode {episode_number} ended, saving {len(self.episode_depths)} data points")
         
         if self.episode_depths:
-            # Prepare episode data
+            # Save actions as integer codes
+            actions_int = [a.value for a in self.episode_actions]
             episode_data = {
                 'depths': self._safe_stack('episode_depths', self.episode_depths, np.float32),
                 'poses': self._safe_stack('episode_poses', self.episode_poses, np.float32),
                 'frames': self._safe_stack('episode_frames', self.episode_frames, np.int32),
                 'distances': self._safe_stack('episode_distances', self.episode_distances, np.float32),
-                'actions': self._safe_stack('episode_actions', self.episode_actions, np.int32),
+                'actions': np.array(actions_int, dtype=np.uint8),
                 'victim_dirs': self._safe_stack('episode_victim_dirs', self.episode_victim_dirs, np.float32)
             }
             # Check if all data was successfully stacked
@@ -238,64 +242,48 @@ class DepthDatasetCollector:
         EM.unsubscribe('simulation/frame', self._on_simulation_frame)
         logger.debug_at_level(DEBUG_L1, "DepthCollector", "Unsubscribed from simulation/frame after episode end")
 
-    def capture(self):
-        """Deprecated: use event 'simulation/frame' instead"""
-        pass
-
     def _on_simulation_frame(self, _):
         """
         Handle simulation frame event: capture data every save_every_n_frames for episodes
         """
-        # increment frame counter
         self.global_frame_counter += 1
-        
-        # Always print action and distance to victim for user
         distance = capture_distance_to_victim()
 
-        # Only collect data if we're in an active episode
-        if not self.collecting_episode:
+        if not self.collecting_episode or (self.global_frame_counter % self.save_every_n_frames != 0):
             return
-            
-        if self.global_frame_counter % self.save_every_n_frames != 0:
-            return
-            
-        logger.debug_at_level(DEBUG_L2, "DepthCollector", f"Capturing episode data for frame {self.global_frame_counter}")
-        
-        # perform capture
+
+        logger.debug_at_level(DEBUG_L2, "DepthCollector",
+                              f"Capturing episode data for frame {self.global_frame_counter}")
+
+        # determine current action as ActionLabel enum
+        action_enum = get_action_label()
+        self.last_action_label = action_enum
+
+        # capture sensor data
         depth_img = capture_depth(self.sensor_handle)
-        pose     = capture_pose()
-        
-        # Add error handling for victim direction
-        try:
-            unit_vec, dist = get_victim_direction()
-            # Check if any values are None before unpacking
-            if unit_vec is None or dist is None:
-                # Default values if victim direction isn't available
-                victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance
-                logger.warning("DepthCollector", "Invalid victim direction values")
-            else:
-                victim_vec = (*unit_vec, dist)
-        except Exception as e:
-            logger.error("DepthCollector", f"Error getting victim direction: {e}")
-            victim_vec = (0.0, 0.0, 0.0, 0.0)  # Default: no direction, zero distance        # Store in episode buffers
+        pose      = capture_pose()
+
+        # get victim direction (no try/except around sim calls)
+        unit_vec, vic_dist = get_victim_direction()
+        victim_vec = (*unit_vec, vic_dist)
+
+        # append all buffers
         self.episode_depths.append(depth_img)
         self.episode_poses.append(pose)
         self.episode_frames.append(self.global_frame_counter)
         self.episode_distances.append(distance)
-        self.episode_actions.append(self.last_action_label)
+        self.episode_actions.append(action_enum)
         self.episode_victim_dirs.append(victim_vec)
 
-        # Print action and distance to victim for user
-        logger.info("DepthCollector", f"Action: {self.last_action_label}, Distance to victim: {distance:.2f}m")
-
+        logger.info("DepthCollector", f"Action: {action_enum.name}, Distance to victim: {distance:.2f}m")
         logger.debug_at_level(DEBUG_L2, "DepthCollector",
-                         f"Episode {self.current_episode_number} - captured data - distance: {distance:.2f}, action: {self.last_action_label}")
+                              f"Episode {self.current_episode_number} - captured data - "
+                              f"distance: {distance:.2f}, action: {action_enum.name}")
 
-        # publish capture complete event
         EM.publish(DATASET_CAPTURE_COMPLETE, {
             'frame': self.global_frame_counter,
             'distance': distance,
-            'action': self.last_action_label,
+            'action': action_enum.name,
             'victim_vec': victim_vec
         })
 
@@ -325,25 +313,40 @@ class DepthDatasetCollector:
             logger.error("DepthCollector", f"Error stacking {name}: {e}")
             return None
 
-    def _on_move(self, delta):
-        """Handle move events to track the current action."""
-        dx, dy, dz = delta
-        # Update action label based on movement
-        if dx > 0: self.last_action_label = 0  # Right
-        elif dx < 0: self.last_action_label = 1  # Left
-        elif dy > 0: self.last_action_label = 2  # Forward
-        elif dy < 0: self.last_action_label = 3  # Backward
-        elif dz > 0: self.last_action_label = 4  # Up
-        elif dz < 0: self.last_action_label = 5  # Down
-        logger.debug_at_level(DEBUG_L3, "DepthCollector", f"Move action updated: {self.last_action_label}")
-
-    def _on_rotate(self, delta):
-        """Handle rotation events to track the current action."""
-        self.last_action_label = 6 if delta > 0 else 7  # 6=turn left, 7=turn right
-        logger.debug_at_level(DEBUG_L3, "DepthCollector", f"Rotate action updated: {self.last_action_label}")
-
     def _on_config_updated(self, _):
         """Update configuration settings."""
         config = get_default_config()
         self.verbose = config.get('verbose', False)
         logger.debug_at_level(DEBUG_L1, "DepthCollector", f"Configuration updated, verbose: {self.verbose}")
+
+    def _on_scene_created(self, _):
+        """Handle scene creation event: enable frame-logging"""
+        logger.info("DepthCollector", "Scene created: starting frame-logging")
+        self.logging_active = True
+        EM.subscribe('simulation/frame', self._on_frame_logging)
+
+    def _on_scene_cleared(self, _):
+        """Handle scene cleared event: disable frame-logging"""
+        logger.info("DepthCollector", "Scene cleared: stopping frame-logging")
+        self.logging_active = False
+        EM.unsubscribe('simulation/frame', self._on_frame_logging)
+
+    def _on_frame_logging(self, _):
+        """Log drone action and state each simulation frame when active"""
+        if not getattr(self, 'logging_active', False):
+            return
+        # Drone state
+        pose = capture_pose()
+        yaw = pose[5]
+        distance = capture_distance_to_victim()
+        # Velocity
+        quad = SC.sim.getObject('/Quadcopter')
+        lin_vel, _ = SC.sim.getObjectVelocity(quad)
+        speed = math.sqrt(lin_vel[0]**2 + lin_vel[1]**2 + lin_vel[2]**2)
+        # Action label
+        action_enum = get_action_label()
+        logger.info(
+            "DepthCollector",
+            f"FrameLog | Action: {action_enum.name} | Dist: {distance:.2f}m | "
+            f"Yaw: {math.degrees(yaw):.1f}° | Speed: {speed:.2f}m/s"
+        )
