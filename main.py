@@ -172,7 +172,7 @@ def main():
     logger.info("Main", "Main loop exited, beginning shutdown sequence")
     
     # Shutdown episode manager first to end any active episodes
-    episode_manager.shutdown()
+    episode_manager.shutdown(save_on_shutdown=False)
     
     # Shut down the logger
     logger.verbose_log("Main", "Shutting down logger", "info")

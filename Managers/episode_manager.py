@@ -177,18 +177,20 @@ class EpisodeManager:
         """
         return self.episode_active
     
-    def shutdown(self):
+    def shutdown(self, save_on_shutdown=True):
         """
         Shutdown the episode manager.
+        If save_on_shutdown is False, do not end the episode or publish EPISODE_END.
         """
-        if self.episode_active:
+        if self.episode_active and save_on_shutdown:
             logger.info("EpisodeManager", "Shutting down with active episode - ending episode")
             self._end_episode()
-        
+        elif self.episode_active and not save_on_shutdown:
+            logger.info("EpisodeManager", "Shutting down with active episode - NOT saving episode data (save_on_shutdown=False)")
+            self.episode_active = False
         # Unsubscribe from events
         EM.unsubscribe(SCENE_CREATION_COMPLETED, self._on_scene_completed)
         EM.unsubscribe('simulation/frame', self._on_simulation_frame)
         EM.unsubscribe('dataset/capture/complete', self._on_data_captured)
         EM.unsubscribe(EPISODE_MANUAL_END, self._on_manual_end)
-        
         logger.info("EpisodeManager", "Episode manager shutdown complete")
