@@ -1,3 +1,14 @@
+## [V.1.4.1] - 2025-05-26
+
+### Fixed
+- Prevented unintended dataset saving on application shutdown by suppressing EPISODE_END event during shutdown. Dataset saving now only occurs on explicit episode completion.
+- Fixed frame-logging callback not being unsubscribed on scene creation cancel, preventing errors when simulation objects are missing.
+
+## [V1.4.0] - 2024-05-26
+
+### Changed
+- (Details for this release should be filled in based on the actual commit, as the message only contains the version bump.)
+
 ## [V.1.3.0] - 2025-05-26
 
 ### Added
