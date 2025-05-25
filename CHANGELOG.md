@@ -1,3 +1,20 @@
+## [V.1.3.0] - 2025-05-26
+
+### Added
+- Asynchronous, episode-based dataset collection: Each episode is saved as a single .npz file in a unique session folder (e.g., data/20250526_025014/train or val).
+- 90/10 train/val split: Each episode is randomly assigned to train (90%) or val (10%) and saved in the corresponding subfolder.
+- Unique dataset folder per run: All data for a session is stored in a timestamped folder (e.g., data/20250526_025014), with no 'depth_dataset' in the name.
+- Robust logging for episode saving, split assignment, and async file operations.
+
+### Changed
+- Removed all batch-based dataset logic in favor of episode-based saving.
+- Refactored DepthDatasetCollector to support async episode saving and session-based folder structure.
+- Updated directory structure for datasets to improve organization and reproducibility.
+
+### Fixed
+- Ensured all episode save threads are joined on shutdown for data integrity.
+- Improved error handling and logging for episode data saving.
+
 ## [V.1.2.1] - 2023-09-20
 
 ### Added
