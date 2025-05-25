@@ -35,3 +35,6 @@ data/
 .cursor/
 
 Docs/
+action_plan.md
+action_fix_action_plan.md
+EPISODE_REFACTOR_SUMMARY.md

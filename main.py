@@ -6,6 +6,7 @@ import argparse
 import os
 import logging
 from Managers.depth_dataset_collector    import DepthDatasetCollector
+from Managers.episode_manager           import EpisodeManager
 from Utils.scene_utils                   import setup_scene_event_handlers
 from Utils.config_utils                  import get_default_config
 from Utils.log_utils                     import get_logger, LOG_LEVEL_DEBUG, LOG_LEVEL_INFO, DEBUG_L1, DEBUG_L2, DEBUG_L3
@@ -108,9 +109,12 @@ def main():
     config['colored_output'] = not args.no_color
     if args.verbose:
         logger.info("Main", f"Verbose mode enabled with debug level {args.debug_level}")
-    
-    # Register scene event handlers
+      # Register scene event handlers
     setup_scene_event_handlers()
+    
+    # Initialize Episode Manager for episode-based data collection
+    episode_manager = EpisodeManager.get_instance()
+    logger.info("Main", "Episode manager initialized")
 
     # Setup camera & data collection
     try:
@@ -121,7 +125,7 @@ def main():
         depth_collector = DepthDatasetCollector(
             cam_rgb,
             base_folder="data/depth_dataset",
-            batch_size=config.get("batch_size", 100),
+            batch_size=config.get("dataset_batch_size", 10),
             save_every_n_frames=config.get("dataset_capture_frequency", 5),
             split_ratio=(0.8, 0.1, 0.1),
         )
@@ -164,9 +168,11 @@ def main():
         
         # Step the simulation
         sim.step()
-    
-    # After GUI closes, perform shutdown
+      # After GUI closes, perform shutdown
     logger.info("Main", "Main loop exited, beginning shutdown sequence")
+    
+    # Shutdown episode manager first to end any active episodes
+    episode_manager.shutdown()
     
     # Shut down the logger
     logger.verbose_log("Main", "Shutting down logger", "info")

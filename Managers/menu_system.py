@@ -177,11 +177,20 @@ class MenuSystem:
         def clear_scene_action():
             self.status_label.configure(text="Clearing scene...")
             clear_scene()
-            
-        # Cancel ongoing scene creation 
+              # Cancel ongoing scene creation 
         def cancel_creation():
-            cancel_scene_creation()
             self.status_label.configure(text="Canceling scene creation...")
+            cancel_scene_creation()
+            
+        # Manual episode end trigger
+        def trigger_episode_end():
+            from Managers.episode_manager import EpisodeManager
+            episode_manager = EpisodeManager.get_instance()
+            if episode_manager.is_episode_active():
+                episode_manager.trigger_manual_end()
+                self.status_label.configure(text="Episode manually ended")
+            else:
+                self.status_label.configure(text="No active episode to end")
         
         # Scene control buttons
         self.scene_buttons = []
@@ -189,6 +198,7 @@ class MenuSystem:
             ("Create Environment", create_scene_with_event),
             ("Clear Environment", clear_scene_action),
             ("Cancel Creating Environment", cancel_creation),
+            ("End Episode", trigger_episode_end),
         ]:
             btn = ttk.Button(parent, text=text, command=command)
             

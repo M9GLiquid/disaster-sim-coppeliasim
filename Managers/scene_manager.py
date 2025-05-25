@@ -396,13 +396,11 @@ class SceneManager:
         
         if self.verbose:
             print(f"[SceneManager] Scene clearing {'succeeded' if success else 'failed'}")
-            
-        EM.publish(SCENE_CLEARED, success)
-    
+        EM.publish(SCENE_CLEARED, success)    
+        
     def _handle_restart(self, config):
         """Handle the scene restart event"""
-        if self.verbose:
-            print("[SceneManager] Restarting scene")
+        print("[SceneManager] Handling scene restart event") # Always print for debugging
             
         # First clear the scene
         self._clear_scene()
@@ -415,7 +413,8 @@ class SceneManager:
         # Update verbose setting
         self.verbose = config.get('verbose', False)
         
-        # Then start a new scene creation
+        # Then start a new scene creation, which will trigger our subscriber in depth_dataset_collector
+        print("[SceneManager] Starting new scene creation") # Always print for debugging
         EM.publish(SCENE_START_CREATION, config)
     
     def _clear_scene(self):
