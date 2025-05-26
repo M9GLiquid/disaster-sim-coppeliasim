@@ -1,3 +1,8 @@
+## [V.1.4.4]
+
+### Fixed
+- Yaw changes reported as action
+
 ## [V.1.4.3]
 
 ### Fixed

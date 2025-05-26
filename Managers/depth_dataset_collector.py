@@ -9,9 +9,10 @@ import datetime
 from Utils.capture_utils import capture_depth, capture_pose, capture_distance_to_victim
 from Utils.config_utils import get_default_config
 from Utils.log_utils import get_logger, DEBUG_L1, DEBUG_L2, DEBUG_L3
-from Utils.episode_utils import save_episode_data, EPISODE_START, EPISODE_END, EPISODE_SAVE_COMPLETED, EPISODE_SAVE_ERROR
+from Utils.episode_utils import EPISODE_START, EPISODE_END, EPISODE_SAVE_COMPLETED, EPISODE_SAVE_ERROR
 from Managers.scene_manager import SCENE_CREATION_COMPLETED, SCENE_CLEARED
-from Utils.action_label_utils import get_action_label, ActionLabel
+from Utils.action_label_utils import get_action_label
+import Utils.action_label_utils as action_label_utils
 from Managers.Connections.sim_connection import SimConnection
 from Core.event_manager import EventManager
 
@@ -167,6 +168,9 @@ class DepthDatasetCollector:
         
         logger.info("DepthCollector", f"Started collecting data for episode {self.current_episode_number}")
 
+        # Reset yaw tracking for action label detection
+        action_label_utils._prev_yaw = None
+
         # Subscribe to simulation frame events for data capture only after scene is ready
         EM.subscribe('simulation/frame', self._on_simulation_frame)
         logger.debug_at_level(DEBUG_L1, "DepthCollector", "Subscribed to simulation/frame after scene creation")
@@ -262,6 +266,8 @@ class DepthDatasetCollector:
         action_enum = get_action_label()
         self.last_action_label = action_enum
 
+        logger.info("DepthCollector", f"Action: {action_enum.name} ({action_enum.value})")
+
         # capture sensor data
         depth_img = capture_depth(self.sensor_handle)
         pose      = capture_pose()
@@ -350,6 +356,6 @@ class DepthDatasetCollector:
         action_enum = get_action_label()
         logger.info(
             "DepthCollector",
-            f"FrameLog | Action: {action_enum.name} | Dist: {distance:.2f}m | "
+            f"FrameLog | Action: {action_enum.name} ({action_enum.value}) | Dist: {distance:.2f}m | "
             f"Yaw: {math.degrees(yaw):.1f}° | Speed: {speed:.2f}m/s"
         )
