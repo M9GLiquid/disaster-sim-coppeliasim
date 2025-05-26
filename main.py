@@ -109,11 +109,12 @@ def main():
     config['colored_output'] = not args.no_color
     if args.verbose:
         logger.info("Main", f"Verbose mode enabled with debug level {args.debug_level}")
-      # Register scene event handlers
+    # Register scene event handlers
     setup_scene_event_handlers()
     
     # Initialize Episode Manager for episode-based data collection
     episode_manager = EpisodeManager.get_instance()
+    episode_manager.set_scene_config(config)  # Store config for automatic restarts
     logger.info("Main", "Episode manager initialized")
 
     # Setup camera & data collection

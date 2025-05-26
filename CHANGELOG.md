@@ -1,3 +1,19 @@
+## [V.1.4.2]
+
+### Added
+- Automatic scene restart after episode end: When an episode finishes, the simulation now automatically restarts the scene using the same configuration, following the publisher-subscriber pattern and project architecture.
+- Logging for automatic scene restarts and configuration reuse in EpisodeManager.
+
+### Changed
+- EpisodeManager now publishes the scene creation event (`scene/start_creation`) with the config directly as event data after episode end, ensuring correct scene re-initialization.
+- Refactored EpisodeManager to store and reuse the scene configuration for subsequent restarts.
+
+### Removed
+- Removed dead and redundant config/restart logic from EpisodeManager and related modules.
+
+### Changed
+- (Placeholder for V1.4.0: details should be filled in based on the actual commit.)
+
 ## [V.1.4.1] - 2025-05-26
 
 ### Fixed

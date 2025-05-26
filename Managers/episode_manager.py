@@ -11,6 +11,7 @@ logger = get_logger()
 
 # Episode manager specific events
 EPISODE_MANUAL_END = 'episode/manual_end'
+SCENE_START_CREATION = 'scene/start_creation'
 
 class EpisodeManager:
     _instance = None
@@ -43,6 +44,7 @@ class EpisodeManager:
             'actions': [],
             'victim_dirs': []
         }
+        self._scene_config = None  # Store config for scene restarts
         
         logger.info("EpisodeManager", f"Initialized with threshold: {threshold}m")
         
@@ -54,10 +56,22 @@ class EpisodeManager:
         
         logger.debug_at_level(DEBUG_L1, "EpisodeManager", "Event subscriptions registered")
     
-    def _on_scene_completed(self, _):
+    def set_scene_config(self, config):
+        """
+        Store the scene configuration for future restarts.
+        """
+        self._scene_config = config
+        logger.debug_at_level(DEBUG_L1, "EpisodeManager", "Scene config stored for episode restarts")
+    
+    def _on_scene_completed(self, data):
         """
         Start a new episode when scene creation is completed.
+        Store the config if provided.
         """
+        config = None
+        if isinstance(data, dict) and 'config' in data:
+            config = data['config']
+            self.set_scene_config(config)
         self._start_episode()
     
     def _start_episode(self):
@@ -158,6 +172,13 @@ class EpisodeManager:
         EM.publish(EPISODE_END, {
             'episode_number': self.episode_number
         })
+
+        # Publish scene restart event with stored config (publish config directly)
+        if self._scene_config is not None:
+            logger.info("EpisodeManager", "Triggering automatic scene restart after episode end")
+            EM.publish(SCENE_START_CREATION, self._scene_config)
+        else:
+            logger.warning("EpisodeManager", "No scene config stored, cannot restart scene automatically")
     
     def trigger_manual_end(self):
         """
