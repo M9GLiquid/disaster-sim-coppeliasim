@@ -1,3 +1,8 @@
+## [V.1.4.3]
+
+### Fixed
+- Target visible in Depth images
+
 ## [V.1.4.2]
 
 ### Added
