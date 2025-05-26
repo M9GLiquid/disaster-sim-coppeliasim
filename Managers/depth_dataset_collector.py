@@ -204,15 +204,8 @@ class DepthDatasetCollector:
                 filename = f"episode_{episode_number:05d}.npz"
                 save_path = os.path.join(split_dir, filename)
                 
+                
                 def save_worker():
-                    # Hide target before saving
-                    target = SC.sim.getObject('/target')
-                    original_visible = SC.sim.getBoolProperty(target, "visible")
-                    original_depth_invisible = SC.sim.getBoolProperty(target, "depthInvisible")
-                    SC.sim.setBoolProperty(target, "visible", False)
-                    SC.sim.setBoolProperty(target, "depthInvisible", True)
-                    logger.info("DepthCollector", f"[Async] Hid target for episode {episode_number} save")
-
                     # Save the dataset (only this I/O is caught)
                     try:
                         np.savez_compressed(
@@ -229,11 +222,7 @@ class DepthDatasetCollector:
                     except Exception as e:
                         logger.error("DepthCollector", f"[Async] Failed to save episode {episode_number} to {save_path}: {e}")
                         EM.publish(EPISODE_SAVE_ERROR, {'episode_number': episode_number})
-
-                    # Restore target visibility
-                    SC.sim.setBoolProperty(target, "visible", original_visible)
-                    SC.sim.setBoolProperty(target, "depthInvisible", original_depth_invisible)
-                    logger.info("DepthCollector", f"[Async] Restored target visibility for episode {episode_number}")
+                        
                 t = threading.Thread(target=save_worker, name=f"EpisodeSave-{episode_number}")
                 t.start()
                 self._save_threads.append(t)
