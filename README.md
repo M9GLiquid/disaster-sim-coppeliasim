@@ -129,4 +129,4 @@ This project was built through close collaboration, shared responsibility, and o
 
 ## License
 
-MIT License
+This project is licensed under the “Personal Use Only License.” See [LICENSE](./LICENSE) for details.
