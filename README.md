@@ -6,6 +6,9 @@ This project simulates a disaster-struck area filled with fallen trees, rocks, a
 A quadcopter (drone) equipped with an RGB-D camera navigates the area. 
 The system supports manual control, dataset collection for AI training, and dynamic environment generation.
 
+Video showcasing the project:
+[Video](https://drive.google.com/file/d/18U5E_Mlqz0zEZYPZGHmw8nj2tE6iEoNk/view?usp=sharing)
+
 ---
 
 ## Main Features
